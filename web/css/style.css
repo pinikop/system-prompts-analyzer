@@ -87,7 +87,7 @@
 .category-badge.examples { background: var(--category-examples); }
 .category-badge.other { background: var(--category-other); }
 
-.variant-row td { background: rgba(59, 130, 246, 0.12); }
+.grouped-row td { background: rgba(59, 130, 246, 0.1) !important; }
 
 table .sortable { cursor: pointer; user-select: none; }
 table .sortable:hover { text-decoration: underline; }

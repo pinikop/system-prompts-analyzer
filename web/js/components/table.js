@@ -17,10 +17,14 @@ export function renderSortableTable(container, { columns, rows, onRowClick }) {
       return `<th class="${cls}" data-col="${c.key}">${c.label}</th>`;
     }).join('');
 
+    // Mark all rows that belong to a multi-row agent group
+    const agentCounts = {};
+    for (const row of displayRows) {
+      if (row._agentId) agentCounts[row._agentId] = (agentCounts[row._agentId] || 0) + 1;
+    }
     const tbody = displayRows.map((row, i) => {
-      const prev = displayRows[i - 1];
-      const isDup = prev && row._agentId && row._agentId === prev._agentId;
-      const cls = isDup ? 'variant-row' : '';
+      const isGrouped = row._agentId && agentCounts[row._agentId] > 1;
+      const cls = isGrouped ? 'grouped-row' : '';
       const cells = columns.map(c => `<td>${row[c.key] ?? ''}</td>`).join('');
       return `<tr class="${cls}" data-idx="${i}">${cells}</tr>`;
     }).join('');
