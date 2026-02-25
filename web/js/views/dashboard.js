@@ -12,7 +12,7 @@ export function renderDashboard(app) {
       <h2>Dashboard</h2>
       <div id="filter-container"></div>
       <div class="grid">
-        <div class="metric-card"><div class="value">${data.meta.agent_count}</div><div class="label">Agents</div></div>
+        <div class="metric-card"><div class="value">${data.meta.agent_count}</div><div class="label">Assistants</div></div>
         <div class="metric-card"><div class="value">${prompts.length}</div><div class="label">Prompts</div></div>
         <div class="metric-card"><div class="value">${data.filters.models.length}</div><div class="label">Models</div></div>
       </div>
@@ -22,15 +22,19 @@ export function renderDashboard(app) {
 
     renderFilterBar(document.getElementById('filter-container'));
 
+    const globalMax = Math.max(...data.prompts.map(p => p.metrics.word_count));
     const labels = prompts.map(p => `${p.agent_name} (${p.label})`);
     const wordCounts = prompts.map(p => p.metrics.word_count);
     createBarChart('size-chart', labels, [{
       label: 'Word Count',
       data: wordCounts,
       backgroundColor: '#3b82f6',
-    }]);
+    }], {
+      scales: { y: { beginAtZero: true, max: Math.ceil(globalMax / 1000) * 1000 } },
+    });
 
     const rows = prompts.map(p => ({
+      vendor: p.vendor,
       agent: p.agent_name,
       label: p.label,
       model: p.model || '-',
@@ -44,7 +48,8 @@ export function renderDashboard(app) {
 
     renderSortableTable(document.getElementById('table-container'), {
       columns: [
-        { key: 'agent', label: 'Agent' },
+        { key: 'vendor', label: 'Vendor' },
+        { key: 'agent', label: 'Assistant' },
         { key: 'label', label: 'Variant' },
         { key: 'model', label: 'Model' },
         { key: 'words', label: 'Words' },

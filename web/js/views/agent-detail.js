@@ -50,7 +50,7 @@ export function renderAgentDetail(app, { id }) {
   const data = getData();
   const agentPrompts = data.prompts.filter(p => p.agent_id === id);
   if (!agentPrompts.length) {
-    app.innerHTML = `<p>Agent "${id}" not found. <a href="#/">Back</a></p>`;
+    app.innerHTML = `<p>Assistant "${id}" not found. <a href="#/">Back</a></p>`;
     return;
   }
 
@@ -59,13 +59,13 @@ export function renderAgentDetail(app, { id }) {
 
   app.innerHTML = `
     <nav aria-label="breadcrumb"><ul><li><a href="#/">Dashboard</a></li><li>${agent.agent_name}</li></ul></nav>
-    <hgroup><h2>${agent.agent_name}</h2><p>${agent.vendor} - ${agentPrompts.length} variant(s)</p></hgroup>
+    <hgroup><h2>${agent.vendor} / ${agent.agent_name}</h2><p>${agentPrompts.length} variant(s)</p></hgroup>
     <div id="tab-bar">${agentPrompts.map((p, i) => `
       <button role="tab" class="outline ${i === 0 ? 'contrast' : 'secondary'}" data-idx="${i}">
         ${p.label}${p.model ? ` (${p.model})` : ''}
       </button>`).join(' ')}</div>
     <div id="variant-content"></div>
-    <h3>Radar: This Agent vs Average</h3>
+    <h3>Radar: This Assistant vs Average</h3>
     <div class="chart-container" style="height:350px"><canvas id="radar-chart"></canvas></div>
   `;
 
