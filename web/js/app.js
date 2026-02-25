@@ -8,7 +8,7 @@ export function registerRoute(pattern, handler) {
 }
 
 function matchRoute(hash) {
-  const path = hash.replace(/^#/, '') || '/';
+  const path = (hash.replace(/^#/, '') || '/').split('?')[0];
   for (const [pattern, handler] of Object.entries(routes)) {
     const regex = new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$');
     const match = path.match(regex);
