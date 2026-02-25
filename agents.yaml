@@ -1,0 +1,123 @@
+# Agent registry: maps agent IDs to their prompt and tool files.
+# Paths are relative to the data/ submodule root.
+# "latest" marks the version used for LLM analysis.
+
+claude-code:
+  name: Claude Code
+  vendor: Anthropic
+  prompts:
+    - label: "v1.0"
+      path: "Anthropic/Claude Code/Prompt.txt"
+    - label: "v2.0"
+      path: "Anthropic/Claude Code 2.0.txt"
+      latest: true
+  tools:
+    - path: "Anthropic/Claude Code/Tools.json"
+
+cursor:
+  name: Cursor
+  vendor: Anysphere
+  prompts:
+    - label: "Agent v1.0"
+      path: "Cursor Prompts/Agent Prompt v1.0.txt"
+    - label: "Agent v1.2"
+      path: "Cursor Prompts/Agent Prompt v1.2.txt"
+    - label: "Agent 2.0"
+      path: "Cursor Prompts/Agent Prompt 2.0.txt"
+    - label: "Agent 2025-09-03"
+      path: "Cursor Prompts/Agent Prompt 2025-09-03.txt"
+      latest: true
+    - label: "Agent CLI 2025-08-07"
+      path: "Cursor Prompts/Agent CLI Prompt 2025-08-07.txt"
+    - label: "Chat"
+      path: "Cursor Prompts/Chat Prompt.txt"
+  tools:
+    - path: "Cursor Prompts/Agent Tools v1.0.json"
+
+windsurf:
+  name: Windsurf
+  vendor: Codeium
+  prompts:
+    - label: "Wave 11"
+      path: "Windsurf/Prompt Wave 11.txt"
+      latest: true
+  tools:
+    - path: "Windsurf/Tools Wave 11.txt"
+      format: txt
+
+devin:
+  name: Devin AI
+  vendor: Cognition
+  prompts:
+    - label: "Main"
+      path: "Devin AI/Prompt.txt"
+      latest: true
+    - label: "DeepWiki"
+      path: "Devin AI/DeepWiki Prompt.txt"
+
+augment:
+  name: Augment Code
+  vendor: Augment
+  prompts:
+    - label: "Claude Sonnet 4"
+      path: "Augment Code/claude-4-sonnet-agent-prompts.txt"
+      latest: true
+    - label: "GPT-5"
+      path: "Augment Code/gpt-5-agent-prompts.txt"
+  tools:
+    - path: "Augment Code/claude-4-sonnet-tools.json"
+    - path: "Augment Code/gpt-5-tools.json"
+
+vscode-copilot:
+  name: VSCode Agent (Copilot)
+  vendor: Microsoft
+  prompts:
+    - label: "Main"
+      path: "VSCode Agent/Prompt.txt"
+      latest: true
+    - label: "Claude Sonnet 4"
+      path: "VSCode Agent/claude-sonnet-4.txt"
+    - label: "GPT-4.1"
+      path: "VSCode Agent/gpt-4.1.txt"
+    - label: "GPT-4o"
+      path: "VSCode Agent/gpt-4o.txt"
+    - label: "GPT-5"
+      path: "VSCode Agent/gpt-5.txt"
+    - label: "GPT-5 Mini"
+      path: "VSCode Agent/gpt-5-mini.txt"
+    - label: "Gemini 2.5 Pro"
+      path: "VSCode Agent/gemini-2.5-pro.txt"
+
+replit:
+  name: Replit
+  vendor: Replit
+  prompts:
+    - label: "Main"
+      path: "Replit/Prompt.txt"
+      latest: true
+  tools:
+    - path: "Replit/Tools.json"
+
+kiro:
+  name: Kiro
+  vendor: Amazon
+  prompts:
+    - label: "Vibe"
+      path: "Kiro/Vibe_Prompt.txt"
+      latest: true
+    - label: "Spec"
+      path: "Kiro/Spec_Prompt.txt"
+    - label: "Mode Classifier"
+      path: "Kiro/Mode_Clasifier_Prompt.txt"
+
+amp:
+  name: Amp
+  vendor: Sourcegraph
+  prompts:
+    - label: "Claude Sonnet 4"
+      path: "Amp/claude-4-sonnet.yaml"
+      format: yaml
+      latest: true
+    - label: "GPT-5"
+      path: "Amp/gpt-5.yaml"
+      format: yaml
