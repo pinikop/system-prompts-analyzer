@@ -8,8 +8,10 @@ claude-code:
   prompts:
     - label: "v1.0"
       path: "Anthropic/Claude Code/Prompt.txt"
+      model: null
     - label: "v2.0"
       path: "Anthropic/Claude Code 2.0.txt"
+      model: null
       latest: true
   tools:
     - path: "Anthropic/Claude Code/Tools.json"
@@ -20,17 +22,23 @@ cursor:
   prompts:
     - label: "Agent v1.0"
       path: "Cursor Prompts/Agent Prompt v1.0.txt"
+      model: null
     - label: "Agent v1.2"
       path: "Cursor Prompts/Agent Prompt v1.2.txt"
+      model: null
     - label: "Agent 2.0"
       path: "Cursor Prompts/Agent Prompt 2.0.txt"
+      model: null
     - label: "Agent 2025-09-03"
       path: "Cursor Prompts/Agent Prompt 2025-09-03.txt"
+      model: null
       latest: true
     - label: "Agent CLI 2025-08-07"
       path: "Cursor Prompts/Agent CLI Prompt 2025-08-07.txt"
+      model: null
     - label: "Chat"
       path: "Cursor Prompts/Chat Prompt.txt"
+      model: null
   tools:
     - path: "Cursor Prompts/Agent Tools v1.0.json"
 
@@ -40,6 +48,7 @@ windsurf:
   prompts:
     - label: "Wave 11"
       path: "Windsurf/Prompt Wave 11.txt"
+      model: null
       latest: true
   tools:
     - path: "Windsurf/Tools Wave 11.txt"
@@ -51,9 +60,11 @@ devin:
   prompts:
     - label: "Main"
       path: "Devin AI/Prompt.txt"
+      model: null
       latest: true
     - label: "DeepWiki"
       path: "Devin AI/DeepWiki Prompt.txt"
+      model: null
 
 augment:
   name: Augment Code
@@ -61,9 +72,11 @@ augment:
   prompts:
     - label: "Claude Sonnet 4"
       path: "Augment Code/claude-4-sonnet-agent-prompts.txt"
+      model: claude-sonnet-4
       latest: true
     - label: "GPT-5"
       path: "Augment Code/gpt-5-agent-prompts.txt"
+      model: gpt-5
   tools:
     - path: "Augment Code/claude-4-sonnet-tools.json"
     - path: "Augment Code/gpt-5-tools.json"
@@ -74,19 +87,26 @@ vscode-copilot:
   prompts:
     - label: "Main"
       path: "VSCode Agent/Prompt.txt"
+      model: null
       latest: true
     - label: "Claude Sonnet 4"
       path: "VSCode Agent/claude-sonnet-4.txt"
+      model: claude-sonnet-4
     - label: "GPT-4.1"
       path: "VSCode Agent/gpt-4.1.txt"
+      model: gpt-4.1
     - label: "GPT-4o"
       path: "VSCode Agent/gpt-4o.txt"
+      model: gpt-4o
     - label: "GPT-5"
       path: "VSCode Agent/gpt-5.txt"
+      model: gpt-5
     - label: "GPT-5 Mini"
       path: "VSCode Agent/gpt-5-mini.txt"
+      model: gpt-5-mini
     - label: "Gemini 2.5 Pro"
       path: "VSCode Agent/gemini-2.5-pro.txt"
+      model: gemini-2.5-pro
 
 replit:
   name: Replit
@@ -94,6 +114,7 @@ replit:
   prompts:
     - label: "Main"
       path: "Replit/Prompt.txt"
+      model: null
       latest: true
   tools:
     - path: "Replit/Tools.json"
@@ -104,11 +125,14 @@ kiro:
   prompts:
     - label: "Vibe"
       path: "Kiro/Vibe_Prompt.txt"
+      model: null
       latest: true
     - label: "Spec"
       path: "Kiro/Spec_Prompt.txt"
+      model: null
     - label: "Mode Classifier"
       path: "Kiro/Mode_Clasifier_Prompt.txt"
+      model: null
 
 amp:
   name: Amp
@@ -117,7 +141,9 @@ amp:
     - label: "Claude Sonnet 4"
       path: "Amp/claude-4-sonnet.yaml"
       format: yaml
+      model: claude-sonnet-4
       latest: true
     - label: "GPT-5"
       path: "Amp/gpt-5.yaml"
       format: yaml
+      model: gpt-5
