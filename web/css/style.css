@@ -1,0 +1,74 @@
+:root {
+  --category-identity: #6366f1;
+  --category-tone: #8b5cf6;
+  --category-safety: #ef4444;
+  --category-tools: #3b82f6;
+  --category-workflow: #10b981;
+  --category-examples: #f59e0b;
+  --category-other: #6b7280;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.filter-bar select { min-width: 150px; }
+
+.metric-card {
+  text-align: center;
+  padding: 1rem;
+}
+
+.metric-card .value {
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.metric-card .label {
+  font-size: 0.85rem;
+  color: var(--pico-muted-color);
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: white;
+  margin: 0.15rem;
+}
+
+.category-badge.identity { background: var(--category-identity); }
+.category-badge.tone { background: var(--category-tone); }
+.category-badge.safety { background: var(--category-safety); }
+.category-badge.tools { background: var(--category-tools); }
+.category-badge.workflow { background: var(--category-workflow); }
+.category-badge.examples { background: var(--category-examples); }
+.category-badge.other { background: var(--category-other); }
+
+.variant-row { font-size: 0.9rem; }
+.variant-row td:first-child { padding-left: 2rem; }
+
+table .sortable { cursor: pointer; user-select: none; }
+table .sortable:hover { text-decoration: underline; }
+table .sort-asc::after { content: " ▲"; }
+table .sort-desc::after { content: " ▼"; }
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.chart-container {
+  position: relative;
+  max-height: 400px;
+}
+
+@media (max-width: 768px) {
+  .compare-grid { grid-template-columns: 1fr; }
+  .filter-bar { flex-direction: column; }
+}
