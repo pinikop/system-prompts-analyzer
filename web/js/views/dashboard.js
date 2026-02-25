@@ -12,9 +12,9 @@ export function renderDashboard(app) {
       <h2>Dashboard</h2>
       <div id="filter-container"></div>
       <div class="grid">
-        <div class="metric-card"><div class="value">${data.meta.agent_count}</div><div class="label">Assistants</div></div>
+        <div class="metric-card"><div class="value">${new Set(prompts.map(p => p.agent_id)).size}</div><div class="label">Assistants</div></div>
         <div class="metric-card"><div class="value">${prompts.length}</div><div class="label">Prompts</div></div>
-        <div class="metric-card"><div class="value">${data.filters.models.length}</div><div class="label">Models</div></div>
+        <div class="metric-card"><div class="value">${new Set(prompts.map(p => p.model).filter(Boolean)).size}</div><div class="label">Target Models</div></div>
       </div>
       <div class="chart-container" style="height:300px"><canvas id="size-chart"></canvas></div>
       <div id="table-container"></div>
@@ -48,8 +48,8 @@ export function renderDashboard(app) {
     renderSortableTable(document.getElementById('table-container'), {
       columns: [
         { key: 'agent', label: 'Assistant' },
-        { key: 'label', label: 'Variant' },
-        { key: 'model', label: 'Model' },
+        { key: 'label', label: 'Version' },
+        { key: 'model', label: 'Target Model' },
         { key: 'words', label: 'Words' },
         { key: 'sections', label: 'Sections' },
         { key: 'tools', label: 'Tools' },

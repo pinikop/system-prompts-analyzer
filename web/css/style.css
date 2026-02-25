@@ -10,12 +10,44 @@
 
 .filter-bar {
   display: flex;
-  gap: 1rem;
+  gap: 1.5rem;
   flex-wrap: wrap;
   margin-bottom: 1rem;
 }
 
-.filter-bar select { min-width: 150px; }
+.filter-group h4 {
+  margin-bottom: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--pico-muted-color);
+}
+
+.filter-group .filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.filter-chip {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--pico-muted-border-color);
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.filter-chip:hover {
+  border-color: var(--pico-primary);
+}
+
+.filter-chip.active {
+  background: var(--pico-primary);
+  color: var(--pico-primary-inverse);
+  border-color: var(--pico-primary);
+}
 
 .metric-card {
   text-align: center;

@@ -1,4 +1,4 @@
-import { getData } from '../state.js';
+import { getData, getAllPromptsForAgent } from '../state.js';
 import { createRadarChart, destroyAll } from '../components/chart.js';
 
 function computeAverages(prompts) {
@@ -48,7 +48,7 @@ function toolsInfo(tools) {
 
 export function renderAgentDetail(app, { id }) {
   const data = getData();
-  const agentPrompts = data.prompts.filter(p => p.agent_id === id);
+  const agentPrompts = getAllPromptsForAgent(id);
   if (!agentPrompts.length) {
     app.innerHTML = `<p>Assistant "${id}" not found. <a href="#/">Back</a></p>`;
     return;

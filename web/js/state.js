@@ -1,5 +1,5 @@
 let _data = null;
-let _filters = { agents: [], vendors: [], models: [] };
+let _filters = { agents: [], models: [] };
 let _listeners = [];
 
 export async function loadData() {
@@ -17,14 +17,32 @@ export function setFilter(key, values) {
   _notify();
 }
 
+export function toggleFilter(key, value) {
+  const arr = _filters[key];
+  const idx = arr.indexOf(value);
+  if (idx === -1) {
+    _filters[key] = [...arr, value];
+  } else {
+    _filters[key] = arr.filter(v => v !== value);
+  }
+  _notify();
+}
+
+/** Get latest prompts only, filtered. For dashboard use. */
 export function getFilteredPrompts() {
   if (!_data) return [];
   return _data.prompts.filter(p => {
+    if (!p.is_latest) return false;
     if (_filters.agents.length && !_filters.agents.includes(p.agent_id)) return false;
-    if (_filters.vendors.length && !_filters.vendors.includes(p.vendor)) return false;
     if (_filters.models.length && !_filters.models.includes(p.model)) return false;
     return true;
   });
+}
+
+/** Get all prompts for an agent (all versions). For detail view. */
+export function getAllPromptsForAgent(agentId) {
+  if (!_data) return [];
+  return _data.prompts.filter(p => p.agent_id === agentId);
 }
 
 export function subscribe(fn) {

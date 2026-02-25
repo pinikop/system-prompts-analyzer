@@ -1,7 +1,7 @@
-import { getData, getFilters, setFilter } from '../state.js';
+import { getData, getFilters, toggleFilter } from '../state.js';
 
 function getAvailableOptions(data, currentFilters) {
-  const prompts = data.prompts;
+  const prompts = data.prompts.filter(p => p.is_latest);
 
   function matchesOtherFilters(p, excludeKey) {
     if (excludeKey !== 'agents' && currentFilters.agents.length
@@ -29,27 +29,35 @@ export function renderFilterBar(container) {
   const current = getFilters();
   const available = getAvailableOptions(data, current);
 
+  const modelSection = available.models.size > 0 ? `
+    <div class="filter-group">
+      <h4>Target Model</h4>
+      <div class="filter-options">
+        ${data.filters.models.filter(m => available.models.has(m)).map(m =>
+          `<span class="filter-chip ${current.models.includes(m) ? 'active' : ''}"
+                data-key="models" data-value="${m}">${m}</span>`
+        ).join('')}
+      </div>
+    </div>` : '';
+
   container.innerHTML = `
     <div class="filter-bar">
-      <select id="filter-agent">
-        <option value="">All Assistants</option>
-        ${data.filters.agents.filter(a => available.agents.has(a.id)).map(a =>
-          `<option value="${a.id}" ${current.agents.includes(a.id) ? 'selected' : ''}>${a.name}</option>`
-        ).join('')}
-      </select>
-      <select id="filter-model">
-        <option value="">All Models</option>
-        ${data.filters.models.filter(m => available.models.has(m)).map(m =>
-          `<option value="${m}" ${current.models.includes(m) ? 'selected' : ''}>${m}</option>`
-        ).join('')}
-      </select>
+      <div class="filter-group">
+        <h4>Assistant</h4>
+        <div class="filter-options">
+          ${data.filters.agents.filter(a => available.agents.has(a.id)).map(a =>
+            `<span class="filter-chip ${current.agents.includes(a.id) ? 'active' : ''}"
+                  data-key="agents" data-value="${a.id}">${a.name}</span>`
+          ).join('')}
+        </div>
+      </div>
+      ${modelSection}
     </div>
   `;
 
-  for (const [id, key] of [['filter-agent', 'agents'], ['filter-model', 'models']]) {
-    container.querySelector('#' + id).addEventListener('change', (e) => {
-      const val = e.target.value;
-      setFilter(key, val ? [val] : []);
+  container.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      toggleFilter(chip.dataset.key, chip.dataset.value);
     });
-  }
+  });
 }
