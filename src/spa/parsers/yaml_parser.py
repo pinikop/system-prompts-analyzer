@@ -15,7 +15,13 @@ def parse_yaml_prompt(text: str) -> ParsedPrompt:
             text: >
               <the actual prompt>
     """
-    data = yaml.safe_load(text)
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError:
+        # Malformed YAML (undefined aliases, etc.) - fall back to text parsing
+        result = parse_txt(text)
+        result.format_type = "yaml"
+        return result
     if not isinstance(data, dict):
         return ParsedPrompt(raw_text=text, format_type="yaml")
 
