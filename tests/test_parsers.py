@@ -5,7 +5,7 @@ from pathlib import Path
 
 from spa.parsers.base import ParsedPrompt
 from spa.parsers.json_parser import parse_tools_json
-from spa.parsers.txt_parser import parse_prompt, parse_tools_txt
+from spa.parsers.txt_parser import extract_inline_tools, parse_prompt, parse_tools_txt
 from spa.parsers.yaml_parser import parse_yaml_prompt
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -152,3 +152,69 @@ Query: string,
             return
         result = parse_tools_txt(path.read_text())
         assert len(result.tools) > 5
+
+
+class TestInlineToolExtraction:
+    def test_json_schema_tools(self):
+        """Claude Code style: ## ToolName + JSON schema + ---"""
+        text = (
+            "Preamble text.\n\n"
+            "## Bash\n\n"
+            "Run shell commands.\n\n"
+            '{"type": "object", "properties": {"command": '
+            '{"type": "string"}}, "required": ["command"]}\n\n'
+            "---\n\n"
+            "## Read\n\n"
+            "Read a file.\n\n"
+            '{"type": "object", "properties": {"path": {"type": "string"}}}\n\n'
+            "---\n"
+        )
+        tools = extract_inline_tools(text)
+        names = [t.name for t in tools]
+        assert "Bash" in names
+        assert "Read" in names
+        assert all(t.source == "inline" for t in tools)
+        bash = next(t for t in tools if t.name == "Bash")
+        assert "command" in bash.parameters.get("properties", {})
+
+    def test_openai_function_array(self):
+        """Cursor/VSCode style: JSON array of tool objects."""
+        text = (
+            "Some preamble.\n"
+            '[{"name": "semantic_search", "description": "Search code", '
+            '"parameters": {"type": "object", "properties": {"query": {"type": "string"}}}}, '
+            '{"name": "read_file", "description": "Read a file", '
+            '"parameters": {"type": "object", "properties": {"path": {"type": "string"}}}}]\n'
+            "More text.\n"
+        )
+        tools = extract_inline_tools(text)
+        names = [t.name for t in tools]
+        assert "semantic_search" in names
+        assert "read_file" in names
+        assert all(t.source == "inline" for t in tools)
+
+    def test_real_claude_code_inline_tools(self):
+        """Real Claude Code 2.0.txt should contain Bash and >= 5 tools."""
+        path = DATA_DIR / "Anthropic" / "Claude Code 2.0.txt"
+        if not path.exists():
+            return
+        tools = extract_inline_tools(path.read_text())
+        names = [t.name for t in tools]
+        assert "Bash" in names
+        assert len(tools) >= 5
+
+    def test_real_cursor_inline_tools(self):
+        """Real Cursor Chat Prompt should contain >= 3 tools."""
+        path = DATA_DIR / "Cursor Prompts" / "Chat Prompt.txt"
+        if not path.exists():
+            return
+        tools = extract_inline_tools(path.read_text())
+        assert len(tools) >= 3
+
+    def test_real_vscode_inline_tools(self):
+        """Real VSCode Agent Prompt should contain >= 3 tools."""
+        path = DATA_DIR / "VSCode Agent" / "Prompt.txt"
+        if not path.exists():
+            return
+        tools = extract_inline_tools(path.read_text())
+        assert len(tools) >= 3

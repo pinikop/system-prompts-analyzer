@@ -1,5 +1,6 @@
 """Two-pass parser for txt/md prompts with mixed markdown headers and XML tags."""
 
+import json
 import re
 
 from spa.parsers.base import ParsedPrompt, ParsedTools, PromptSection, ToolDefinition
@@ -92,3 +93,185 @@ def parse_tools_txt(text: str) -> ParsedTools:
         tools.append(ToolDefinition(name=name, description=description))
 
     return ParsedTools(tools=tools, source_format="txt")
+
+
+# Claude Code style: ## ToolName heading followed later by --- separator
+_CC_HEADING_RE = re.compile(r"^##\s+(?P<name>[A-Za-z]\w*)\s*$", re.MULTILINE)
+_CC_SEP_RE = re.compile(r"^---\s*$", re.MULTILINE)
+
+
+def _bracket_match(text: str, start: int, open_ch: str, close_ch: str) -> int:
+    """Find matching closing bracket. Returns end index (exclusive) or -1."""
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            if in_string:
+                escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == open_ch:
+            depth += 1
+        elif ch == close_ch:
+            depth -= 1
+            if depth == 0:
+                return i + 1
+    return -1
+
+
+def _extract_claude_code_tools(text: str) -> list[ToolDefinition]:
+    """Extract tools in Claude Code style: ## Name, description, {JSON schema}, ---."""
+    tools: list[ToolDefinition] = []
+    for hm in _CC_HEADING_RE.finditer(text):
+        name = hm.group("name")
+        section_start = hm.end()
+        # Find the next --- separator after this heading
+        sep = _CC_SEP_RE.search(text, section_start)
+        if not sep:
+            continue
+        section = text[section_start:sep.start()]
+        # Find the last top-level JSON object in this section (the schema).
+        # Scan forward, bracket-match each '{', keep the last valid parse.
+        params: dict = {}
+        schema_start = -1
+        k = 0
+        while k < len(section):
+            brace_pos = section.find("{", k)
+            if brace_pos == -1:
+                break
+            end = _bracket_match(section, brace_pos, "{", "}")
+            if end == -1:
+                k = brace_pos + 1
+                continue
+            candidate = section[brace_pos:end]
+            try:
+                parsed = json.loads(candidate)
+            except json.JSONDecodeError:
+                k = brace_pos + 1
+                continue
+            if isinstance(parsed, dict):
+                params = parsed
+                schema_start = brace_pos
+            k = end
+        if schema_start == -1:
+            continue
+        desc = section[:schema_start].strip()
+        tools.append(ToolDefinition(
+            name=name, description=desc, parameters=params, source="inline",
+        ))
+    return tools
+
+
+def _parse_tool_object(obj: dict) -> ToolDefinition | None:
+    """Parse a single tool dict, handling OpenAI-wrapped format."""
+    if "function" in obj and isinstance(obj["function"], dict):
+        obj = obj["function"]
+    name = obj.get("name")
+    if not name:
+        return None
+    return ToolDefinition(
+        name=name,
+        description=obj.get("description", ""),
+        parameters=obj.get("parameters", {}),
+        source="inline",
+    )
+
+
+def _extract_openai_function_tools(text: str) -> list[ToolDefinition]:
+    """Extract tools from JSON arrays or concatenated JSON objects in text.
+
+    Handles:
+    - JSON arrays: [{"name":...}, ...] or [{"type":"function","function":{...}}, ...]
+    - Concatenated objects: {"type":"function","function":{...}},{"type":"function",...}
+    """
+    tools: list[ToolDefinition] = []
+    i = 0
+    while i < len(text):
+        # Find next [ or { that could start a tool definition
+        next_bracket = text.find("[", i)
+        next_brace = text.find("{", i)
+        if next_bracket == -1 and next_brace == -1:
+            break
+
+        # Try array first if it comes before a brace
+        if next_bracket != -1 and (next_brace == -1 or next_bracket <= next_brace):
+            peek = text[next_bracket:next_bracket + 200]
+            if '"name"' in peek and '"description"' in peek:
+                end = _bracket_match(text, next_bracket, "[", "]")
+                if end != -1:
+                    candidate = text[next_bracket:end]
+                    try:
+                        arr = json.loads(candidate)
+                    except json.JSONDecodeError:
+                        pass
+                    else:
+                        if isinstance(arr, list):
+                            for item in arr:
+                                if isinstance(item, dict):
+                                    tool = _parse_tool_object(item)
+                                    if tool:
+                                        tools.append(tool)
+                            i = end
+                            continue
+            i = next_bracket + 1
+            continue
+
+        # Try individual object (Cursor concatenated format)
+        peek = text[next_brace:next_brace + 200]
+        if '"name"' in peek and '"description"' in peek:
+            end = _bracket_match(text, next_brace, "{", "}")
+            if end != -1:
+                candidate = text[next_brace:end]
+                try:
+                    obj = json.loads(candidate)
+                except json.JSONDecodeError:
+                    i = next_brace + 1
+                    continue
+                if isinstance(obj, dict):
+                    tool = _parse_tool_object(obj)
+                    if tool:
+                        tools.append(tool)
+                i = end
+                continue
+        i = next_brace + 1
+    return tools
+
+
+def extract_inline_tools(text: str) -> list[ToolDefinition]:
+    """Extract all inline tool definitions from prompt text.
+
+    Handles three formats:
+    1. Claude Code style (## Name + JSON schema + ---)
+    2. OpenAI-style JSON arrays ([{"name":...}, ...])
+    3. TypeScript declarations (via parse_tools_txt)
+    """
+    seen: set[str] = set()
+    tools: list[ToolDefinition] = []
+
+    for extractor in (_extract_claude_code_tools, _extract_openai_function_tools):
+        for tool in extractor(text):
+            if tool.name not in seen:
+                seen.add(tool.name)
+                tools.append(tool)
+
+    # Format 3: TypeScript declarations (already handled by parse_tools_txt)
+    for tool in parse_tools_txt(text).tools:
+        if tool.name not in seen:
+            seen.add(tool.name)
+            tools.append(ToolDefinition(
+                name=tool.name,
+                description=tool.description,
+                parameters=tool.parameters,
+                source="inline",
+            ))
+
+    return tools

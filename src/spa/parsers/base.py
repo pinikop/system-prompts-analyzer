@@ -29,6 +29,7 @@ class ToolDefinition:
     name: str
     description: str = ""
     parameters: dict = field(default_factory=dict)
+    source: str = "file"  # "file" or "inline"
 
 
 @dataclass
