@@ -17,16 +17,26 @@ export function renderSortableTable(container, { columns, rows, onRowClick }) {
       return `<th class="${cls}" data-col="${c.key}">${c.label}</th>`;
     }).join('');
 
-    // Mark all rows that belong to a multi-row agent group
+    // Alternate group colors for multi-row agents, add border between groups
     const agentCounts = {};
     for (const row of displayRows) {
       if (row._agentId) agentCounts[row._agentId] = (agentCounts[row._agentId] || 0) + 1;
     }
+    let groupColorIdx = 0;
+    const groupColors = ['group-a', 'group-b'];
+    const agentColorMap = {};
     const tbody = displayRows.map((row, i) => {
-      const isGrouped = row._agentId && agentCounts[row._agentId] > 1;
-      const cls = isGrouped ? 'grouped-row' : '';
+      const prev = displayRows[i - 1];
+      const isNewGroup = !prev || prev._agentId !== row._agentId;
+      if (isNewGroup && row._agentId && agentCounts[row._agentId] > 1) {
+        agentColorMap[row._agentId] = groupColors[groupColorIdx % 2];
+        groupColorIdx++;
+      }
+      const classes = [];
+      if (isNewGroup && i > 0) classes.push('group-border');
+      if (agentColorMap[row._agentId]) classes.push(agentColorMap[row._agentId]);
       const cells = columns.map(c => `<td>${row[c.key] ?? ''}</td>`).join('');
-      return `<tr class="${cls}" data-idx="${i}">${cells}</tr>`;
+      return `<tr class="${classes.join(' ')}" data-idx="${i}">${cells}</tr>`;
     }).join('');
 
     container.innerHTML = `
