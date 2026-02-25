@@ -18,8 +18,13 @@ export function renderSortableTable(container, { columns, rows, onRowClick }) {
     }).join('');
 
     const tbody = displayRows.map((row, i) => {
-      const cls = row._isVariant ? 'variant-row' : '';
-      const cells = columns.map(c => `<td>${row[c.key] ?? ''}</td>`).join('');
+      const prev = displayRows[i - 1];
+      const isDup = prev && row._agentId && row._agentId === prev._agentId;
+      const cls = isDup ? 'variant-row' : '';
+      const cells = columns.map(c => {
+        const val = (c.key === 'agent' && isDup) ? '' : (row[c.key] ?? '');
+        return `<td>${val}</td>`;
+      }).join('');
       return `<tr class="${cls}" data-idx="${i}">${cells}</tr>`;
     }).join('');
 
