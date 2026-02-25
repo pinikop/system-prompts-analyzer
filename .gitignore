@@ -19,5 +19,5 @@ web/data/analysis.json
 # OS
 .DS_Store
 
-# Plans (local only)
-plans/
+# Plans (local scratchpad only)
+/plans/
