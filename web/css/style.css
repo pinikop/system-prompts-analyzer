@@ -81,7 +81,7 @@
 .category-badge.examples { background: var(--category-examples); }
 .category-badge.other { background: var(--category-other); }
 
-.variant-row { font-size: 0.9rem; }
+.variant-row td { color: var(--pico-muted-color); }
 .variant-row td:first-child { padding-left: 2rem; }
 
 table .sortable { cursor: pointer; user-select: none; }

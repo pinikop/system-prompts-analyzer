@@ -27,19 +27,26 @@ def parse_prompt(text: str) -> ParsedPrompt:
     has_xml = bool(_XML_TAG_RE.search(text))
     has_markdown = bool(_HEADING_RE.search(text))
 
-    # Pass 1: extract top-level XML sections
+    # Pass 1: extract top-level XML sections (deduplicate repeated tags)
     if has_xml:
+        xml_seen: dict[str, PromptSection] = {}
         for m in _XML_TAG_RE.finditer(text):
             tag_name = m.group("tag")
-            # Skip small inline tags (like <example> used as formatting)
             content = m.group("content").strip()
-            if len(content) > 50:
-                sections.append(PromptSection(
+            if len(content) <= 50:
+                continue
+            if tag_name in xml_seen:
+                # Merge repeated tags (e.g. multiple <example>) into one section
+                xml_seen[tag_name].content += "\n---\n" + content
+            else:
+                section = PromptSection(
                     name=tag_name,
                     content=content,
                     level=1,
                     source="xml",
-                ))
+                )
+                xml_seen[tag_name] = section
+                sections.append(section)
 
     # Pass 2: split by markdown headings
     if has_markdown:

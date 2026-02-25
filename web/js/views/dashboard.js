@@ -23,7 +23,7 @@ export function renderDashboard(app) {
     renderFilterBar(document.getElementById('filter-container'));
 
     const globalMax = Math.max(...data.prompts.map(p => p.metrics.word_count));
-    const labels = prompts.map(p => `${p.agent_name} (${p.label})`);
+    const labels = prompts.map(p => p.model ? `${p.agent_name} (${p.model})` : p.agent_name);
     const wordCounts = prompts.map(p => p.metrics.word_count);
     createBarChart('size-chart', labels, [{
       label: 'Word Count',
@@ -33,17 +33,24 @@ export function renderDashboard(app) {
       scales: { y: { beginAtZero: true, max: Math.ceil(globalMax / 1000) * 1000 } },
     });
 
-    const rows = prompts.map(p => ({
-      agent: p.agent_name,
-      label: p.label,
-      model: p.model || '-',
-      words: p.metrics.word_count,
-      sections: p.metrics.section_count,
-      tools: p.tools.count,
-      directives: p.metrics.directive_count,
-      format: p.metrics.format_type,
-      _agentId: p.agent_id,
-    }));
+    const sorted = [...prompts].sort((a, b) => a.agent_name.localeCompare(b.agent_name));
+    let prevAgent = '';
+    const rows = sorted.map(p => {
+      const isDup = p.agent_name === prevAgent;
+      prevAgent = p.agent_name;
+      return {
+        agent: isDup ? '' : p.agent_name,
+        label: p.label,
+        model: p.model || '-',
+        words: p.metrics.word_count,
+        sections: p.metrics.section_count,
+        tools: p.tools.count,
+        directives: p.metrics.directive_count,
+        format: p.metrics.format_type,
+        _agentId: p.agent_id,
+        _isVariant: isDup,
+      };
+    });
 
     renderSortableTable(document.getElementById('table-container'), {
       columns: [
