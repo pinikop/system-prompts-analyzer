@@ -96,7 +96,7 @@ def run_pipeline(*, output_path: Path | None = None) -> dict:
                 "vendor": vendor,
                 "label": prompt_entry["label"],
                 "model": model,
-                "is_latest": prompt_entry.get("latest", False),
+                "is_current": prompt_entry.get("current", False),
                 "metrics": metrics,
                 "tools": tool_metrics,
             })

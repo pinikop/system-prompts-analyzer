@@ -73,7 +73,7 @@ export function renderAgentDetail(app, { id }) {
     const p = agentPrompts[idx];
     document.getElementById('variant-content').innerHTML = `
       <article>
-        <header><strong>${p.label}</strong>${p.model ? ` - Model: ${p.model}` : ''} ${p.is_latest ? '(latest)' : ''}</header>
+        <header><strong>${p.label}</strong>${p.model ? ` - Model: ${p.model}` : ''} ${p.is_current ? '(current)' : ''}</header>
         ${metricsPanel(p.metrics)}
         <h4>Sections</h4>${sectionBadges(p.metrics)}
         <h4>Tools</h4>${toolsInfo(p.tools)}
@@ -92,7 +92,7 @@ export function renderAgentDetail(app, { id }) {
   });
   showVariant(0);
 
-  const latest = agentPrompts.find(p => p.is_latest) || agentPrompts[0];
+  const latest = agentPrompts.find(p => p.is_current) || agentPrompts[0];
   const radarLabels = ['Words/100', 'Sections', 'Directives', 'Dir Density', 'Examples', 'Tools'];
   createRadarChart('radar-chart', radarLabels, [
     {

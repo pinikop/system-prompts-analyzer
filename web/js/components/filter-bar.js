@@ -1,7 +1,7 @@
 import { getData, getFilters, toggleFilter } from '../state.js';
 
 function getAvailableOptions(data, currentFilters) {
-  const prompts = data.prompts.filter(p => p.is_latest);
+  const prompts = data.prompts.filter(p => p.is_current);
 
   function matchesOtherFilters(p, excludeKey) {
     if (excludeKey !== 'agents' && currentFilters.agents.length

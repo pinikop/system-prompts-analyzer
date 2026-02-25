@@ -32,7 +32,7 @@ export function toggleFilter(key, value) {
 export function getFilteredPrompts() {
   if (!_data) return [];
   return _data.prompts.filter(p => {
-    if (!p.is_latest) return false;
+    if (!p.is_current) return false;
     if (_filters.agents.length && !_filters.agents.includes(p.agent_id)) return false;
     if (_filters.models.length && !_filters.models.includes(p.model)) return false;
     return true;
