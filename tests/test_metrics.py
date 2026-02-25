@@ -69,3 +69,36 @@ class TestRuleBasedMetrics:
         assert m["word_count"] > 1000
         assert m["directive_count"] > 0
         assert m["section_count"] > 5
+
+
+from spa.metrics.tool_metrics import compute_tool_metrics
+from spa.parsers.base import ToolDefinition
+
+
+class TestToolMetrics:
+    def test_basic_counts(self):
+        tools = [
+            ToolDefinition(name="Bash", description="Run commands", source="inline"),
+            ToolDefinition(name="Read", description="Read files", source="inline"),
+            ToolDefinition(name="Write", description="Write files", source="file"),
+        ]
+        m = compute_tool_metrics(tools)
+        assert m["count"] == 3
+        assert m["names"] == ["Bash", "Read", "Write"]
+        assert m["sources"]["inline"] == 2
+        assert m["sources"]["file"] == 1
+
+    def test_category_classification(self):
+        tools = [
+            ToolDefinition(name="Bash", description="Execute shell commands"),
+            ToolDefinition(name="Read", description="Read file contents"),
+            ToolDefinition(name="GitCommit", description="Commit changes to git"),
+        ]
+        m = compute_tool_metrics(tools)
+        assert "execution" in m["categories"]
+        assert "Bash" in m["categories"]["execution"]
+
+    def test_empty_tools(self):
+        m = compute_tool_metrics([])
+        assert m["count"] == 0
+        assert m["names"] == []
