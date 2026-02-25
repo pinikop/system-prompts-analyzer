@@ -1,4 +1,4 @@
-import { getData, getFilters, toggleFilter } from '../state.js';
+import { getData, getFilters, setFilter, toggleFilter } from '../state.js';
 
 function getAvailableOptions(data, currentFilters) {
   const prompts = data.prompts.filter(p => p.is_current);
@@ -27,6 +27,7 @@ export function renderFilterBar(container) {
   if (!data) return;
 
   const current = getFilters();
+  const hasFilters = current.agents.length > 0 || current.models.length > 0;
   const available = getAvailableOptions(data, current);
 
   const modelSection = available.models.size > 0 ? `
@@ -52,6 +53,7 @@ export function renderFilterBar(container) {
         </div>
       </div>
       ${modelSection}
+      ${hasFilters ? '<div class="filter-group"><button class="outline secondary filter-clear">Clear all</button></div>' : ''}
     </div>
   `;
 
@@ -60,4 +62,12 @@ export function renderFilterBar(container) {
       toggleFilter(chip.dataset.key, chip.dataset.value);
     });
   });
+
+  const clearBtn = container.querySelector('.filter-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      setFilter('agents', []);
+      setFilter('models', []);
+    });
+  }
 }

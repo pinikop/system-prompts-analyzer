@@ -16,7 +16,7 @@ export function renderDashboard(app) {
         <div class="metric-card"><div class="value">${prompts.length}</div><div class="label">Prompts</div></div>
         <div class="metric-card"><div class="value">${new Set(prompts.map(p => p.model).filter(Boolean)).size}</div><div class="label">Target Models</div></div>
       </div>
-      <div class="chart-container" style="height:300px"><canvas id="size-chart"></canvas></div>
+      <div class="chart-container" style="height:400px"><canvas id="size-chart"></canvas></div>
       <div id="table-container"></div>
     `;
 
@@ -31,7 +31,11 @@ export function renderDashboard(app) {
       data: wordCounts,
       backgroundColor: '#3b82f6',
     }], {
-      scales: { y: { beginAtZero: true, max: Math.ceil(globalMax / 1000) * 1000 } },
+      scales: {
+        y: { beginAtZero: true, max: Math.ceil(globalMax / 1000) * 1000 },
+        x: { ticks: { maxRotation: 45, minRotation: 25, font: { size: 11 } } },
+      },
+      plugins: { legend: { display: false } },
     });
 
     const rows = prompts.map(p => ({
@@ -39,6 +43,7 @@ export function renderDashboard(app) {
       label: p.label,
       model: p.model || '-',
       words: p.metrics.word_count,
+      lines: p.metrics.line_count,
       sections: p.metrics.section_count,
       tools: p.tools.count,
       directives: p.metrics.directive_count,
@@ -52,6 +57,7 @@ export function renderDashboard(app) {
         { key: 'label', label: 'Version' },
         { key: 'model', label: 'Target Model' },
         { key: 'words', label: 'Words' },
+        { key: 'lines', label: 'Lines' },
         { key: 'sections', label: 'Sections' },
         { key: 'tools', label: 'Tools' },
         { key: 'directives', label: 'Directives' },

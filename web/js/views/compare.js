@@ -19,13 +19,16 @@ export function renderCompare(app) {
   let keyB = params.get('b') || '';
 
   function render() {
-    const options = prompts.map(p => {
+    const current = prompts.filter(p => p.is_current);
+    const options = current.map(p => {
       const k = promptKey(p);
-      return `<option value="${k}">${p.agent_name} - ${p.label}</option>`;
+      const modelTag = p.model ? ` (${p.model})` : '';
+      return `<option value="${k}">${p.agent_name}${modelTag}</option>`;
     }).join('');
 
     app.innerHTML = `
-      <h2>Compare Prompts</h2>
+      <nav aria-label="breadcrumb"><ul><li><a href="#/">Dashboard</a></li><li>Compare</li></ul></nav>
+      <h2>Compare Assistants</h2>
       <div class="grid">
         <select id="sel-a"><option value="">Select prompt A</option>${options}</select>
         <select id="sel-b"><option value="">Select prompt B</option>${options}</select>

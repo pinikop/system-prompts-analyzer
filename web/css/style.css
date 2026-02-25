@@ -43,6 +43,12 @@
   border-color: var(--pico-primary);
 }
 
+.filter-clear {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.6rem;
+  margin-top: 0.25rem;
+}
+
 .filter-chip.active {
   background: var(--pico-primary);
   color: var(--pico-primary-inverse);
@@ -96,7 +102,7 @@ table .sort-desc::after { content: " ▼"; }
 
 .chart-container {
   position: relative;
-  max-height: 400px;
+  max-height: 450px;
 }
 
 @media (max-width: 768px) {
