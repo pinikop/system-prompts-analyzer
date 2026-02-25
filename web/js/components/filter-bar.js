@@ -1,12 +1,9 @@
-import { getData, getFilters, setFilter, getFilteredPrompts } from '../state.js';
+import { getData, getFilters, setFilter } from '../state.js';
 
 function getAvailableOptions(data, currentFilters) {
   const prompts = data.prompts;
 
-  // For each filter, compute which options are valid given the OTHER active filters
   function matchesOtherFilters(p, excludeKey) {
-    if (excludeKey !== 'vendors' && currentFilters.vendors.length
-        && !currentFilters.vendors.includes(p.vendor)) return false;
     if (excludeKey !== 'agents' && currentFilters.agents.length
         && !currentFilters.agents.includes(p.agent_id)) return false;
     if (excludeKey !== 'models' && currentFilters.models.length
@@ -14,17 +11,15 @@ function getAvailableOptions(data, currentFilters) {
     return true;
   }
 
-  const vendors = new Set();
   const agents = new Set();
   const models = new Set();
 
   for (const p of prompts) {
-    if (matchesOtherFilters(p, 'vendors')) vendors.add(p.vendor);
     if (matchesOtherFilters(p, 'agents')) agents.add(p.agent_id);
     if (matchesOtherFilters(p, 'models') && p.model) models.add(p.model);
   }
 
-  return { vendors, agents, models };
+  return { agents, models };
 }
 
 export function renderFilterBar(container) {
@@ -34,18 +29,8 @@ export function renderFilterBar(container) {
   const current = getFilters();
   const available = getAvailableOptions(data, current);
 
-  const agentLookup = Object.fromEntries(
-    data.filters.agents.map(a => [a.id, a.name])
-  );
-
   container.innerHTML = `
     <div class="filter-bar">
-      <select id="filter-vendor">
-        <option value="">All Vendors</option>
-        ${data.filters.vendors.filter(v => available.vendors.has(v)).map(v =>
-          `<option value="${v}" ${current.vendors.includes(v) ? 'selected' : ''}>${v}</option>`
-        ).join('')}
-      </select>
       <select id="filter-agent">
         <option value="">All Assistants</option>
         ${data.filters.agents.filter(a => available.agents.has(a.id)).map(a =>
@@ -61,7 +46,7 @@ export function renderFilterBar(container) {
     </div>
   `;
 
-  for (const [id, key] of [['filter-vendor', 'vendors'], ['filter-agent', 'agents'], ['filter-model', 'models']]) {
+  for (const [id, key] of [['filter-agent', 'agents'], ['filter-model', 'models']]) {
     container.querySelector('#' + id).addEventListener('change', (e) => {
       const val = e.target.value;
       setFilter(key, val ? [val] : []);

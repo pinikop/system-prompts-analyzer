@@ -34,7 +34,6 @@ export function renderDashboard(app) {
     });
 
     const rows = prompts.map(p => ({
-      vendor: p.vendor,
       agent: p.agent_name,
       label: p.label,
       model: p.model || '-',
@@ -48,7 +47,6 @@ export function renderDashboard(app) {
 
     renderSortableTable(document.getElementById('table-container'), {
       columns: [
-        { key: 'vendor', label: 'Vendor' },
         { key: 'agent', label: 'Assistant' },
         { key: 'label', label: 'Variant' },
         { key: 'model', label: 'Model' },
