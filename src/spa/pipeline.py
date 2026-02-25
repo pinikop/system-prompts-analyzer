@@ -2,7 +2,7 @@
 
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from spa.config import DATA_DIR, WEB_DATA_DIR, load_agent_registry
@@ -102,7 +102,7 @@ def run_pipeline(*, output_path: Path | None = None) -> dict:
             })
 
     output = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "meta": {
             "llm_model": None,
             "agent_count": len(all_agents),
@@ -133,7 +133,8 @@ def main() -> None:
     result = run_pipeline(output_path=args.output)
     count = result["meta"]["prompt_count"]
     agents = result["meta"]["agent_count"]
-    print(f"Analyzed {count} prompts from {agents} agents -> {args.output or WEB_DATA_DIR / 'analysis.json'}")
+    out = args.output or WEB_DATA_DIR / "analysis.json"
+    print(f"Analyzed {count} prompts from {agents} agents -> {out}")
 
 
 if __name__ == "__main__":

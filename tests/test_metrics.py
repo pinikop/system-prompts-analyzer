@@ -3,7 +3,8 @@
 from pathlib import Path
 
 from spa.metrics.rule_based import compute_metrics
-from spa.parsers.base import ParsedPrompt, PromptSection
+from spa.metrics.tool_metrics import compute_tool_metrics
+from spa.parsers.base import ParsedPrompt, PromptSection, ToolDefinition
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
@@ -69,10 +70,6 @@ class TestRuleBasedMetrics:
         assert m["word_count"] > 1000
         assert m["directive_count"] > 0
         assert m["section_count"] > 5
-
-
-from spa.metrics.tool_metrics import compute_tool_metrics
-from spa.parsers.base import ToolDefinition
 
 
 class TestToolMetrics:
