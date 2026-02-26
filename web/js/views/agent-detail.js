@@ -31,6 +31,40 @@ function sectionBadges(m) {
   ).join(' ');
 }
 
+const SAFETY_COLORS = { low: '#6b7280', medium: '#f59e0b', high: '#f97316', very_high: '#ef4444' };
+const AUTONOMY_COLORS = { low: '#6b7280', medium: '#3b82f6', high: '#10b981' };
+
+function llmAnalysisPanel(analysis) {
+  if (!analysis) return '';
+  const toneBadges = analysis.tone.map(t =>
+    `<span class="category-badge tone">${t}</span>`
+  ).join(' ');
+  const safetyColor = SAFETY_COLORS[analysis.safety_emphasis] || '#6b7280';
+  const autonomyColor = AUTONOMY_COLORS[analysis.autonomy_level] || '#6b7280';
+  const safetyLabel = analysis.safety_emphasis.replace('_', ' ');
+
+  return `
+    <h4>LLM Analysis</h4>
+    <article>
+      <p><strong>Identity:</strong> ${analysis.identity}</p>
+      <p><strong>Tone:</strong> ${toneBadges}</p>
+      <p><strong>Personality:</strong> ${analysis.personality}</p>
+      <p><strong>Coding Philosophy:</strong> ${analysis.coding_philosophy}</p>
+      <p>
+        <span class="category-badge" style="background:${safetyColor}">Safety: ${safetyLabel}</span>
+        <span class="category-badge" style="background:${autonomyColor}">Autonomy: ${analysis.autonomy_level}</span>
+      </p>
+      <p><strong>Safety Details:</strong> ${analysis.safety_details}</p>
+      <p><strong>Error Handling:</strong> ${analysis.error_handling}</p>
+      <details><summary>Behavioral Rules (${analysis.behavioral_rules.length})</summary>
+        <ul>${analysis.behavioral_rules.map(r => `<li>${r}</li>`).join('')}</ul>
+      </details>
+      <details><summary>Unique Features (${analysis.unique_features.length})</summary>
+        <ul>${analysis.unique_features.map(f => `<li>${f}</li>`).join('')}</ul>
+      </details>
+    </article>`;
+}
+
 function toolsInfo(tools) {
   if (!tools.names.length) return '<p>No tools found.</p>';
   return `<p><strong>${tools.count} tools</strong>
@@ -81,6 +115,7 @@ export function renderAgentDetail(app, { id }) {
         <ul>${Object.entries(p.metrics.directive_keywords || {})
           .sort(([,a],[,b]) => b - a).slice(0, 5)
           .map(([kw, count]) => `<li><strong>${kw}</strong>: ${count}</li>`).join('')}</ul>
+        ${llmAnalysisPanel(p.llm_analysis)}
       </article>`;
     app.querySelectorAll('[role="tab"]').forEach((btn, i) => {
       btn.className = `outline ${i === idx ? 'contrast' : 'secondary'}`;

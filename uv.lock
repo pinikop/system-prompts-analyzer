@@ -1373,6 +1373,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
+    { name = "python-dotenv" },
     { name = "pyyaml" },
 ]
 
@@ -1391,6 +1392,7 @@ dev = [
 requires-dist = [
     { name = "litellm", marker = "extra == 'llm'", specifier = ">=1.0" },
     { name = "pydantic", specifier = ">=2.0" },
+    { name = "python-dotenv", specifier = ">=1.2.1" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 provides-extras = ["llm"]

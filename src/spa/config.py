@@ -15,6 +15,8 @@ DIRECTIVE_KEYWORDS = [
     "REQUIRED", "FORBIDDEN", "PROHIBITED", "MANDATORY",
 ]
 
+DEFAULT_LLM_MODEL = "openai/Qwen/Qwen3-235B-A22B-Instruct-2507"
+
 TOOL_CATEGORIES = {
     "file_ops": ["read", "write", "edit", "create", "delete", "rename", "move", "copy"],
     "search": ["search", "grep", "find", "glob", "ripgrep"],

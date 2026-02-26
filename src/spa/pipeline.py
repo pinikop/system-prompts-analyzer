@@ -1,17 +1,24 @@
-"""Orchestrates parse -> metrics -> JSON output."""
+"""Orchestrates parse -> metrics -> LLM analysis -> JSON output."""
 
 import argparse
 import json
+import logging
+import os
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from spa.config import DATA_DIR, WEB_DATA_DIR, load_agent_registry
+from dotenv import load_dotenv
+
+from spa.config import DATA_DIR, DEFAULT_LLM_MODEL, WEB_DATA_DIR, load_agent_registry
 from spa.metrics.rule_based import compute_metrics
 from spa.metrics.tool_metrics import compute_tool_metrics
 from spa.parsers.base import ToolDefinition
 from spa.parsers.json_parser import parse_tools_json
 from spa.parsers.txt_parser import extract_inline_tools, parse_prompt, parse_tools_txt
 from spa.parsers.yaml_parser import parse_yaml_prompt
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_prompt_file(path: Path, fmt: str) -> tuple:
@@ -47,17 +54,34 @@ def _merge_tools(
     return list(seen.values())
 
 
-def run_pipeline(*, output_path: Path | None = None) -> dict:
+def run_pipeline(
+    *,
+    output_path: Path | None = None,
+    skip_llm: bool = False,
+    llm_model: str = DEFAULT_LLM_MODEL,
+) -> dict:
     """Run the full analysis pipeline. Returns the output dict."""
+    load_dotenv()
     registry = load_agent_registry()
 
     if output_path is None:
         output_path = WEB_DATA_DIR / "analysis.json"
 
+    # Validate LLM credentials early
+    if not skip_llm and not os.environ.get("LLM_API_KEY"):
+        print(
+            "Error: LLM_API_KEY environment variable is required for LLM analysis.\n"
+            "Set it in .env or pass --skip-llm to run without LLM analysis.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     prompts_out: list[dict] = []
     all_models: set[str] = set()
     all_agents: list[dict] = []
     all_vendors: set[str] = set()
+    # Track raw text and tool names for LLM analysis
+    llm_inputs: dict[str, tuple[str, list[str], str]] = {}
 
     for agent_id, agent in registry.items():
         agent_name = agent["name"]
@@ -90,25 +114,72 @@ def run_pipeline(*, output_path: Path | None = None) -> dict:
             if model:
                 all_models.add(model)
 
-            prompts_out.append({
+            is_current = prompt_entry.get("current", False)
+            prompt_key = f"{agent_id}::{prompt_entry['label']}"
+
+            entry = {
                 "agent_id": agent_id,
                 "agent_name": agent_name,
                 "vendor": vendor,
                 "label": prompt_entry["label"],
                 "model": model,
-                "is_current": prompt_entry.get("current", False),
+                "is_current": is_current,
                 "metrics": metrics,
                 "tools": tool_metrics,
-            })
+                "llm_analysis": None,
+            }
+            prompts_out.append(entry)
+
+            if is_current and not skip_llm:
+                llm_inputs[prompt_key] = (
+                    parsed.raw_text,
+                    [t.name for t in merged_tools],
+                    agent_name,
+                )
+
+    # Run LLM analysis on current prompts
+    comparisons: list[dict] = []
+    llm_model_used = None
+
+    if llm_inputs and not skip_llm:
+        from spa.llm.analyzer import analyze_agent
+        from spa.llm.rankings import compute_rankings
+        from spa.llm.schemas import AgentAnalysis
+
+        llm_model_used = llm_model
+        analyses: dict[str, AgentAnalysis] = {}
+
+        for prompt_key, (raw_text, tool_names, agent_name) in llm_inputs.items():
+            try:
+                analysis = analyze_agent(
+                    raw_text=raw_text,
+                    tool_names=tool_names,
+                    agent_name=agent_name,
+                    model=llm_model,
+                )
+                analyses[prompt_key] = analysis
+
+                # Attach to the matching prompt entry
+                agent_id, label = prompt_key.split("::", 1)
+                for entry in prompts_out:
+                    if entry["agent_id"] == agent_id and entry["label"] == label:
+                        entry["llm_analysis"] = analysis.model_dump()
+                        break
+            except Exception:
+                logger.exception("LLM analysis failed for %s", prompt_key)
+
+        if analyses:
+            comparisons = compute_rankings(analyses, prompts_out)
 
     output = {
         "generated_at": datetime.now(UTC).isoformat(),
         "meta": {
-            "llm_model": None,
+            "llm_model": llm_model_used,
             "agent_count": len(all_agents),
             "prompt_count": len(prompts_out),
         },
         "prompts": prompts_out,
+        "comparisons": comparisons,
         "filters": {
             "models": sorted(all_models),
             "agents": all_agents,
@@ -127,14 +198,26 @@ def main() -> None:
         "--output", "-o", type=Path, default=None,
         help="Output JSON path (default: web/data/analysis.json)",
     )
-    parser.add_argument("--skip-llm", action="store_true", default=True)
+    parser.add_argument(
+        "--skip-llm", action="store_true", default=False,
+        help="Skip LLM analysis and only run rule-based metrics",
+    )
+    parser.add_argument(
+        "--llm-model", type=str, default=DEFAULT_LLM_MODEL,
+        help=f"LLM model to use (default: {DEFAULT_LLM_MODEL})",
+    )
     args = parser.parse_args()
 
-    result = run_pipeline(output_path=args.output)
+    result = run_pipeline(
+        output_path=args.output,
+        skip_llm=args.skip_llm,
+        llm_model=args.llm_model,
+    )
     count = result["meta"]["prompt_count"]
     agents = result["meta"]["agent_count"]
+    llm_status = f" (LLM: {result['meta']['llm_model']})" if result["meta"]["llm_model"] else ""
     out = args.output or WEB_DATA_DIR / "analysis.json"
-    print(f"Analyzed {count} prompts from {agents} agents -> {out}")
+    print(f"Analyzed {count} prompts from {agents} assistants{llm_status} -> {out}")
 
 
 if __name__ == "__main__":

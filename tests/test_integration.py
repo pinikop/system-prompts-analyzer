@@ -1,7 +1,6 @@
 """Integration tests for pipeline output and dashboard data invariants."""
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -17,7 +16,7 @@ EXPECTED_MODELS = {
 MULTI_MODEL_AGENTS = {"vscode-copilot": 6, "augment": 2, "amp": 2}
 REQUIRED_PROMPT_KEYS = {
     "agent_id", "agent_name", "vendor", "label",
-    "model", "is_current", "metrics", "tools",
+    "model", "is_current", "metrics", "tools", "llm_analysis",
 }
 REQUIRED_METRIC_KEYS = {
     "word_count", "line_count", "char_count", "section_count",
@@ -30,7 +29,7 @@ REQUIRED_METRIC_KEYS = {
 def pipeline_output(tmp_path_factory: pytest.TempPathFactory) -> dict:
     """Run pipeline once, share result across all tests in this module."""
     output = tmp_path_factory.mktemp("data") / "analysis.json"
-    run_pipeline(output_path=output)
+    run_pipeline(output_path=output, skip_llm=True)
     return json.loads(output.read_text())
 
 
@@ -39,7 +38,7 @@ class TestOutputSchema:
 
     def test_top_level_keys(self, pipeline_output: dict) -> None:
         assert set(pipeline_output.keys()) == {
-            "generated_at", "meta", "prompts", "filters",
+            "generated_at", "meta", "prompts", "comparisons", "filters",
         }
 
     def test_meta_counts(self, pipeline_output: dict) -> None:
@@ -163,3 +162,19 @@ class TestFilterLogic:
         filter_ids = {a["id"] for a in pipeline_output["filters"]["agents"]}
         prompt_ids = {p["agent_id"] for p in pipeline_output["prompts"]}
         assert filter_ids == prompt_ids
+
+
+class TestLlmSkipped:
+    """Verify LLM fields when --skip-llm is used."""
+
+    def test_llm_analysis_is_none(self, pipeline_output: dict) -> None:
+        for entry in pipeline_output["prompts"]:
+            assert entry["llm_analysis"] is None, (
+                f"{entry['agent_id']}/{entry['label']}: llm_analysis should be None when skipped"
+            )
+
+    def test_comparisons_empty(self, pipeline_output: dict) -> None:
+        assert pipeline_output["comparisons"] == []
+
+    def test_llm_model_is_none(self, pipeline_output: dict) -> None:
+        assert pipeline_output["meta"]["llm_model"] is None

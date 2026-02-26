@@ -38,18 +38,37 @@ export function renderDashboard(app) {
       plugins: { legend: { display: false } },
     });
 
-    const rows = prompts.map(p => ({
-      agent: p.agent_name,
-      label: p.label,
-      model: p.model || '-',
-      words: p.metrics.word_count,
-      lines: p.metrics.line_count,
-      sections: p.metrics.section_count,
-      tools: p.tools.count,
-      directives: p.metrics.directive_count,
-      format: p.metrics.format_type,
-      _agentId: p.agent_id,
-    }));
+    const safetyBadge = (level) => {
+      if (!level) return '-';
+      const colors = { low: '#6b7280', medium: '#f59e0b', high: '#f97316', very_high: '#ef4444' };
+      const label = level.replace('_', ' ');
+      return `<span class="category-badge" style="background:${colors[level] || '#6b7280'}">${label}</span>`;
+    };
+    const toneBadges = (tones) => {
+      if (!tones) return '-';
+      return tones.slice(0, 3).map(t =>
+        `<span class="category-badge tone">${t}</span>`
+      ).join(' ');
+    };
+
+    const rows = prompts.map(p => {
+      const llm = p.llm_analysis;
+      return {
+        agent: p.agent_name,
+        label: p.label,
+        model: p.model || '-',
+        words: p.metrics.word_count,
+        lines: p.metrics.line_count,
+        sections: p.metrics.section_count,
+        tools: p.tools.count,
+        directives: p.metrics.directive_count,
+        format: p.metrics.format_type,
+        tone: llm ? toneBadges(llm.tone) : '-',
+        safety: llm ? safetyBadge(llm.safety_emphasis) : '-',
+        _agentId: p.agent_id,
+        _safetyRaw: llm ? llm.safety_emphasis : '',
+      };
+    });
 
     renderSortableTable(document.getElementById('table-container'), {
       columns: [
@@ -61,6 +80,8 @@ export function renderDashboard(app) {
         { key: 'sections', label: 'Sections' },
         { key: 'tools', label: 'Tools' },
         { key: 'directives', label: 'Directives' },
+        { key: 'tone', label: 'Tone', html: true },
+        { key: 'safety', label: 'Safety', html: true },
         { key: 'format', label: 'Format' },
       ],
       rows,

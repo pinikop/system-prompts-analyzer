@@ -9,7 +9,7 @@ from spa.pipeline import run_pipeline
 class TestPipeline:
     def test_produces_valid_json(self, tmp_path: Path):
         output = tmp_path / "analysis.json"
-        run_pipeline(output_path=output)
+        run_pipeline(output_path=output, skip_llm=True)
         assert output.exists()
         data = json.loads(output.read_text())
         assert "generated_at" in data
@@ -20,7 +20,7 @@ class TestPipeline:
 
     def test_prompt_entry_structure(self, tmp_path: Path):
         output = tmp_path / "analysis.json"
-        run_pipeline(output_path=output)
+        run_pipeline(output_path=output, skip_llm=True)
         data = json.loads(output.read_text())
         entry = data["prompts"][0]
         assert "agent_id" in entry
@@ -34,7 +34,7 @@ class TestPipeline:
 
     def test_filters_populated(self, tmp_path: Path):
         output = tmp_path / "analysis.json"
-        run_pipeline(output_path=output)
+        run_pipeline(output_path=output, skip_llm=True)
         data = json.loads(output.read_text())
         assert len(data["filters"]["agents"]) == 9
         assert len(data["filters"]["vendors"]) > 0

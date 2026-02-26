@@ -64,6 +64,7 @@ export function renderCompare(app) {
     }
 
     const mA = pA.metrics, mB = pB.metrics;
+    const llmA = pA.llm_analysis, llmB = pB.llm_analysis;
     const metrics = [
       ['Words', mA.word_count, mB.word_count],
       ['Lines', mA.line_count, mB.line_count],
@@ -74,6 +75,20 @@ export function renderCompare(app) {
       ['Tools', pA.tools.count, pB.tools.count],
       ['Format', mA.format_type, mB.format_type],
     ];
+
+    if (llmA && llmB) {
+      const safetyColors = { low: '#6b7280', medium: '#f59e0b', high: '#f97316', very_high: '#ef4444' };
+      const badge = (val, colors) => {
+        const label = val.replace('_', ' ');
+        return `<span class="category-badge" style="background:${colors[val] || '#6b7280'}">${label}</span>`;
+      };
+      const autonomyColors = { low: '#6b7280', medium: '#3b82f6', high: '#10b981' };
+      metrics.push(
+        ['Safety', badge(llmA.safety_emphasis, safetyColors), badge(llmB.safety_emphasis, safetyColors)],
+        ['Autonomy', badge(llmA.autonomy_level, autonomyColors), badge(llmB.autonomy_level, autonomyColors)],
+        ['Tone', llmA.tone.join(', '), llmB.tone.join(', ')],
+      );
+    }
 
     container.innerHTML = `
       <div class="compare-grid">
