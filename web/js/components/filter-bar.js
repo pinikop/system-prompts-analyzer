@@ -4,22 +4,22 @@ function getAvailableOptions(data, currentFilters) {
   const prompts = data.prompts.filter(p => p.is_current);
 
   function matchesOtherFilters(p, excludeKey) {
-    if (excludeKey !== 'agents' && currentFilters.agents.length
-        && !currentFilters.agents.includes(p.agent_id)) return false;
+    if (excludeKey !== 'assistants' && currentFilters.assistants.length
+        && !currentFilters.assistants.includes(p.assistant_id)) return false;
     if (excludeKey !== 'models' && currentFilters.models.length
         && !currentFilters.models.includes(p.model)) return false;
     return true;
   }
 
-  const agents = new Set();
+  const assistants = new Set();
   const models = new Set();
 
   for (const p of prompts) {
-    if (matchesOtherFilters(p, 'agents')) agents.add(p.agent_id);
+    if (matchesOtherFilters(p, 'assistants')) assistants.add(p.assistant_id);
     if (matchesOtherFilters(p, 'models') && p.model) models.add(p.model);
   }
 
-  return { agents, models };
+  return { assistants, models };
 }
 
 export function renderFilterBar(container) {
@@ -27,7 +27,7 @@ export function renderFilterBar(container) {
   if (!data) return;
 
   const current = getFilters();
-  const hasFilters = current.agents.length > 0 || current.models.length > 0;
+  const hasFilters = current.assistants.length > 0 || current.models.length > 0;
   const available = getAvailableOptions(data, current);
 
   const modelSection = available.models.size > 0 ? `
@@ -46,9 +46,9 @@ export function renderFilterBar(container) {
       <div class="filter-group">
         <h4>Assistant</h4>
         <div class="filter-options">
-          ${data.filters.agents.filter(a => available.agents.has(a.id)).map(a =>
-            `<span class="filter-chip ${current.agents.includes(a.id) ? 'active' : ''}"
-                  data-key="agents" data-value="${a.id}">${a.name}</span>`
+          ${data.filters.assistants.filter(a => available.assistants.has(a.id)).map(a =>
+            `<span class="filter-chip ${current.assistants.includes(a.id) ? 'active' : ''}"
+                  data-key="assistants" data-value="${a.id}">${a.name}</span>`
           ).join('')}
         </div>
       </div>
@@ -66,7 +66,7 @@ export function renderFilterBar(container) {
   const clearBtn = container.querySelector('.filter-clear');
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
-      setFilter('agents', []);
+      setFilter('assistants', []);
       setFilter('models', []);
     });
   }

@@ -1,4 +1,4 @@
-import { getData, getAllPromptsForAgent } from '../state.js';
+import { getData, getAllPromptsForAssistant } from '../state.js';
 import { createRadarChart, destroyAll } from '../components/chart.js';
 
 function computeAverages(prompts) {
@@ -80,21 +80,21 @@ function toolsInfo(tools) {
       </details>` : ''}`;
 }
 
-export function renderAgentDetail(app, { id }) {
+export function renderAssistantDetail(app, { id }) {
   const data = getData();
-  const agentPrompts = getAllPromptsForAgent(id);
-  if (!agentPrompts.length) {
+  const assistantPrompts = getAllPromptsForAssistant(id);
+  if (!assistantPrompts.length) {
     app.innerHTML = `<p>Assistant "${id}" not found. <a href="#/">Back</a></p>`;
     return;
   }
 
-  const agent = agentPrompts[0];
+  const assistant = assistantPrompts[0];
   const averages = computeAverages(data.prompts);
 
   app.innerHTML = `
-    <nav aria-label="breadcrumb"><ul><li><a href="#/">Dashboard</a></li><li>${agent.agent_name}</li></ul></nav>
-    <hgroup><h2>${agent.vendor} / ${agent.agent_name}</h2><p>${agentPrompts.length} variant(s)</p></hgroup>
-    <div id="tab-bar">${agentPrompts.map((p, i) => `
+    <nav aria-label="breadcrumb"><ul><li><a href="#/">Dashboard</a></li><li>${assistant.assistant_name}</li></ul></nav>
+    <hgroup><h2>${assistant.vendor} / ${assistant.assistant_name}</h2><p>${assistantPrompts.length} variant(s)</p></hgroup>
+    <div id="tab-bar">${assistantPrompts.map((p, i) => `
       <button role="tab" class="outline ${i === 0 ? 'contrast' : 'secondary'}" data-idx="${i}">
         ${p.label}${p.model ? ` (${p.model})` : ''}
       </button>`).join(' ')}</div>
@@ -104,7 +104,7 @@ export function renderAgentDetail(app, { id }) {
   `;
 
   function showVariant(idx) {
-    const p = agentPrompts[idx];
+    const p = assistantPrompts[idx];
     document.getElementById('variant-content').innerHTML = `
       <article>
         <header><strong>${p.label}</strong>${p.model ? ` - Model: ${p.model}` : ''} ${p.is_current ? '(current)' : ''}</header>
@@ -127,11 +127,11 @@ export function renderAgentDetail(app, { id }) {
   });
   showVariant(0);
 
-  const latest = agentPrompts.find(p => p.is_current) || agentPrompts[0];
+  const latest = assistantPrompts.find(p => p.is_current) || assistantPrompts[0];
   const radarLabels = ['Words/100', 'Sections', 'Directives', 'Dir Density', 'Examples', 'Tools'];
   createRadarChart('radar-chart', radarLabels, [
     {
-      label: agent.agent_name,
+      label: assistant.assistant_name,
       data: [latest.metrics.word_count/100, latest.metrics.section_count, latest.metrics.directive_count,
              latest.metrics.directive_density, latest.metrics.example_count, latest.tools.count],
       borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)',

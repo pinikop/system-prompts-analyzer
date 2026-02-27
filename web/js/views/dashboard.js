@@ -12,7 +12,7 @@ export function renderDashboard(app) {
       <h2>Dashboard</h2>
       <div id="filter-container"></div>
       <div class="grid">
-        <div class="metric-card"><div class="value">${new Set(prompts.map(p => p.agent_id)).size}</div><div class="label">Assistants</div></div>
+        <div class="metric-card"><div class="value">${new Set(prompts.map(p => p.assistant_id)).size}</div><div class="label">Assistants</div></div>
         <div class="metric-card"><div class="value">${prompts.length}</div><div class="label">Prompts</div></div>
         <div class="metric-card"><div class="value">${new Set(prompts.map(p => p.model).filter(Boolean)).size}</div><div class="label">Target Models</div></div>
       </div>
@@ -24,7 +24,7 @@ export function renderDashboard(app) {
 
     const globalMax = Math.max(...data.prompts.map(p => p.metrics.word_count));
     const shortName = (name) => name.replace(/ Agent| Code|\(Copilot\)/g, '').trim();
-    const labels = prompts.map(p => p.model ? `${shortName(p.agent_name)} ${p.model}` : shortName(p.agent_name));
+    const labels = prompts.map(p => p.model ? `${shortName(p.assistant_name)} ${p.model}` : shortName(p.assistant_name));
     const wordCounts = prompts.map(p => p.metrics.word_count);
     createBarChart('size-chart', labels, [{
       label: 'Word Count',
@@ -54,7 +54,7 @@ export function renderDashboard(app) {
     const rows = prompts.map(p => {
       const llm = p.llm_analysis;
       return {
-        agent: p.agent_name,
+        agent: p.assistant_name,
         label: p.label,
         model: p.model || '-',
         words: p.metrics.word_count,
@@ -65,7 +65,7 @@ export function renderDashboard(app) {
         format: p.metrics.format_type,
         tone: llm ? toneBadges(llm.tone) : '-',
         safety: llm ? safetyBadge(llm.safety_emphasis) : '-',
-        _agentId: p.agent_id,
+        _assistantId: p.assistant_id,
         _safetyRaw: llm ? llm.safety_emphasis : '',
       };
     });
@@ -85,7 +85,7 @@ export function renderDashboard(app) {
         { key: 'format', label: 'Format' },
       ],
       rows,
-      onRowClick: (row) => { location.hash = `#/agent/${row._agentId}`; },
+      onRowClick: (row) => { location.hash = `#/assistant/${row._assistantId}`; },
     });
   }
 

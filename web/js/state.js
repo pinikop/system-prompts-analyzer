@@ -1,5 +1,5 @@
 let _data = null;
-let _filters = { agents: [], models: [] };
+let _filters = { assistants: [], models: [] };
 let _listeners = [];
 
 export async function loadData() {
@@ -33,16 +33,16 @@ export function getFilteredPrompts() {
   if (!_data) return [];
   return _data.prompts.filter(p => {
     if (!p.is_current) return false;
-    if (_filters.agents.length && !_filters.agents.includes(p.agent_id)) return false;
+    if (_filters.assistants.length && !_filters.assistants.includes(p.assistant_id)) return false;
     if (_filters.models.length && !_filters.models.includes(p.model)) return false;
     return true;
   });
 }
 
-/** Get all prompts for an agent (all versions). For detail view. */
-export function getAllPromptsForAgent(agentId) {
+/** Get all prompts for an assistant (all versions). For detail view. */
+export function getAllPromptsForAssistant(assistantId) {
   if (!_data) return [];
-  return _data.prompts.filter(p => p.agent_id === agentId);
+  return _data.prompts.filter(p => p.assistant_id === assistantId);
 }
 
 export function subscribe(fn) {

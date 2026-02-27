@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class AgentAnalysis(BaseModel):
+class AssistantAnalysis(BaseModel):
     """LLM-extracted thematic analysis of one coding assistant's system prompt."""
 
     identity: str = Field(description="1-2 sentence identity statement")

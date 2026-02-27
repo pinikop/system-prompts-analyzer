@@ -1,15 +1,14 @@
 """LLM-powered thematic analysis of coding assistant system prompts."""
 
-import json
 import logging
 import os
 
-from spa.llm.schemas import AgentAnalysis
+from spa.llm.schemas import AssistantAnalysis
 
 logger = logging.getLogger(__name__)
 
 PROMPT_TEMPLATE = """\
-You are analyzing the system prompt of an AI coding assistant called "{agent_name}".
+You are analyzing the system prompt of an AI coding assistant called "{assistant_name}".
 
 Below is the full system prompt text, followed by a list of tools available to this assistant.
 
@@ -37,21 +36,21 @@ Analyze this system prompt and return a JSON object with exactly these fields:
 Return ONLY a valid JSON object with these fields. No markdown fences, no extra text."""
 
 
-def _build_prompt(raw_text: str, tool_names: list[str], agent_name: str) -> str:
+def _build_prompt(raw_text: str, tool_names: list[str], assistant_name: str) -> str:
     """Build the analysis prompt from template."""
     if tool_names:
         tool_list = "\n".join(f"- {name}" for name in tool_names)
     else:
         tool_list = "No tools defined."
     return PROMPT_TEMPLATE.format(
-        agent_name=agent_name,
+        assistant_name=assistant_name,
         raw_text=raw_text,
         tool_list=tool_list,
     )
 
 
-def _parse_response(content: str) -> AgentAnalysis:
-    """Parse LLM response text into AgentAnalysis, stripping markdown fences if present."""
+def _parse_response(content: str) -> AssistantAnalysis:
+    """Parse LLM response text into AssistantAnalysis, stripping markdown fences if present."""
     text = content.strip()
     if text.startswith("```"):
         # Strip ```json ... ``` fences
@@ -60,15 +59,15 @@ def _parse_response(content: str) -> AgentAnalysis:
         if lines and lines[-1].strip() == "```":
             lines = lines[:-1]
         text = "\n".join(lines)
-    return AgentAnalysis.model_validate_json(text)
+    return AssistantAnalysis.model_validate_json(text)
 
 
-def analyze_agent(
+def analyze_assistant(
     raw_text: str,
     tool_names: list[str],
-    agent_name: str,
+    assistant_name: str,
     model: str,
-) -> AgentAnalysis:
+) -> AssistantAnalysis:
     """Run LLM analysis on a single coding assistant's system prompt.
 
     Retries once on validation failure with a corrective prompt.
@@ -78,7 +77,7 @@ def analyze_agent(
     api_key = os.environ.get("LLM_API_KEY")
     base_url = os.environ.get("LLM_BASE_URL")
 
-    prompt = _build_prompt(raw_text, tool_names, agent_name)
+    prompt = _build_prompt(raw_text, tool_names, assistant_name)
 
     kwargs: dict = {
         "model": model,
@@ -92,7 +91,7 @@ def analyze_agent(
         kwargs["api_base"] = base_url
 
     # First attempt
-    logger.info("Analyzing %s with %s...", agent_name, model)
+    logger.info("Analyzing %s with %s...", assistant_name, model)
     response = litellm.completion(**kwargs)
     content = response.choices[0].message.content
 
@@ -100,17 +99,19 @@ def analyze_agent(
         return _parse_response(content)
     except Exception as first_error:
         error_msg = str(first_error)
-        logger.warning("First parse failed for %s: %s. Retrying...", agent_name, error_msg)
+        logger.warning("First parse failed for %s: %s. Retrying...", assistant_name, error_msg)
 
     # Retry with corrective prompt
     kwargs["messages"].append({"role": "assistant", "content": content})
-    kwargs["messages"].append({
-        "role": "user",
-        "content": (
-            f"Your response failed validation: {error_msg}\n"
-            "Please fix the JSON and return ONLY valid JSON matching the schema."
-        ),
-    })
+    kwargs["messages"].append(
+        {
+            "role": "user",
+            "content": (
+                f"Your response failed validation: {error_msg}\n"
+                "Please fix the JSON and return ONLY valid JSON matching the schema."
+            ),
+        }
+    )
 
     response = litellm.completion(**kwargs)
     content = response.choices[0].message.content

@@ -31,11 +31,11 @@ function navigate() {
 async function init() {
   await loadData();
   const { renderDashboard } = await import('./views/dashboard.js');
-  const { renderAgentDetail } = await import('./views/agent-detail.js');
+  const { renderAssistantDetail } = await import('./views/assistant-detail.js');
   const { renderCompare } = await import('./views/compare.js');
 
   registerRoute('/', renderDashboard);
-  registerRoute('/agent/:id', renderAgentDetail);
+  registerRoute('/assistant/:id', renderAssistantDetail);
   registerRoute('/compare', renderCompare);
 
   window.addEventListener('hashchange', navigate);

@@ -1,7 +1,7 @@
 import { getData } from '../state.js';
 import { createRadarChart, destroyAll } from '../components/chart.js';
 
-function promptKey(p) { return `${p.agent_id}::${p.label}`; }
+function promptKey(p) { return `${p.assistant_id}::${p.label}`; }
 
 function delta(a, b) {
   const diff = a - b;
@@ -23,7 +23,7 @@ export function renderCompare(app) {
     const options = current.map(p => {
       const k = promptKey(p);
       const modelTag = p.model ? ` (${p.model})` : '';
-      return `<option value="${k}">${p.agent_name}${modelTag}</option>`;
+      return `<option value="${k}">${p.assistant_name}${modelTag}</option>`;
     }).join('');
 
     app.innerHTML = `
@@ -92,13 +92,13 @@ export function renderCompare(app) {
 
     container.innerHTML = `
       <div class="compare-grid">
-        <article><header><strong>${pA.agent_name}</strong> - ${pA.label}</header>
+        <article><header><strong>${pA.assistant_name}</strong> - ${pA.label}</header>
           <p>Vendor: ${pA.vendor} | Model: ${pA.model || '-'}</p></article>
-        <article><header><strong>${pB.agent_name}</strong> - ${pB.label}</header>
+        <article><header><strong>${pB.assistant_name}</strong> - ${pB.label}</header>
           <p>Vendor: ${pB.vendor} | Model: ${pB.model || '-'}</p></article>
       </div>
       <figure><table>
-        <thead><tr><th>Metric</th><th>${pA.agent_name}</th><th>${pB.agent_name}</th></tr></thead>
+        <thead><tr><th>Metric</th><th>${pA.assistant_name}</th><th>${pB.assistant_name}</th></tr></thead>
         <tbody>${metrics.map(([label, a, b]) => `<tr>
           <td>${label}</td>
           <td>${typeof a === 'number' ? delta(a, a-b) : a}</td>
@@ -111,12 +111,12 @@ export function renderCompare(app) {
     const labels = ['Words/100', 'Sections', 'Directives', 'Dir Density', 'Examples', 'Tools'];
     createRadarChart('compare-radar', labels, [
       {
-        label: `${pA.agent_name} (${pA.label})`,
+        label: `${pA.assistant_name} (${pA.label})`,
         data: [mA.word_count/100, mA.section_count, mA.directive_count, mA.directive_density, mA.example_count, pA.tools.count],
         borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)',
       },
       {
-        label: `${pB.agent_name} (${pB.label})`,
+        label: `${pB.assistant_name} (${pB.label})`,
         data: [mB.word_count/100, mB.section_count, mB.directive_count, mB.directive_density, mB.example_count, pB.tools.count],
         borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)',
       },

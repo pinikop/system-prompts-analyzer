@@ -23,8 +23,8 @@ class TestPipeline:
         run_pipeline(output_path=output, skip_llm=True)
         data = json.loads(output.read_text())
         entry = data["prompts"][0]
-        assert "agent_id" in entry
-        assert "agent_name" in entry
+        assert "assistant_id" in entry
+        assert "assistant_name" in entry
         assert "vendor" in entry
         assert "label" in entry
         assert "model" in entry
@@ -36,5 +36,5 @@ class TestPipeline:
         output = tmp_path / "analysis.json"
         run_pipeline(output_path=output, skip_llm=True)
         data = json.loads(output.read_text())
-        assert len(data["filters"]["agents"]) == 9
+        assert len(data["filters"]["assistants"]) == 9
         assert len(data["filters"]["vendors"]) > 0

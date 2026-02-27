@@ -6,21 +6,37 @@ import pytest
 
 from spa.pipeline import run_pipeline
 
-EXPECTED_AGENTS = 9
+EXPECTED_ASSISTANTS = 9
 EXPECTED_CURRENT = 16
 EXPECTED_TOTAL = 26
 EXPECTED_MODELS = {
-    "claude-sonnet-4", "gemini-2.5-pro", "gpt-4.1",
-    "gpt-4o", "gpt-5", "gpt-5-mini",
+    "claude-sonnet-4",
+    "gemini-2.5-pro",
+    "gpt-4.1",
+    "gpt-4o",
+    "gpt-5",
+    "gpt-5-mini",
 }
-MULTI_MODEL_AGENTS = {"vscode-copilot": 6, "augment": 2, "amp": 2}
+MULTI_MODEL_ASSISTANTS = {"vscode-copilot": 6, "augment": 2, "amp": 2}
 REQUIRED_PROMPT_KEYS = {
-    "agent_id", "agent_name", "vendor", "label",
-    "model", "is_current", "metrics", "tools", "llm_analysis",
+    "assistant_id",
+    "assistant_name",
+    "vendor",
+    "label",
+    "model",
+    "is_current",
+    "metrics",
+    "tools",
+    "llm_analysis",
 }
 REQUIRED_METRIC_KEYS = {
-    "word_count", "line_count", "char_count", "section_count",
-    "directive_count", "example_count", "directive_density",
+    "word_count",
+    "line_count",
+    "char_count",
+    "section_count",
+    "directive_count",
+    "example_count",
+    "directive_density",
     "format_type",
 }
 
@@ -38,24 +54,28 @@ class TestOutputSchema:
 
     def test_top_level_keys(self, pipeline_output: dict) -> None:
         assert set(pipeline_output.keys()) == {
-            "generated_at", "meta", "prompts", "comparisons", "filters",
+            "generated_at",
+            "meta",
+            "prompts",
+            "comparisons",
+            "filters",
         }
 
     def test_meta_counts(self, pipeline_output: dict) -> None:
         meta = pipeline_output["meta"]
-        assert meta["agent_count"] == EXPECTED_AGENTS
+        assert meta["assistant_count"] == EXPECTED_ASSISTANTS
         assert meta["prompt_count"] == EXPECTED_TOTAL
 
     def test_filter_lists(self, pipeline_output: dict) -> None:
         filters = pipeline_output["filters"]
-        assert len(filters["agents"]) == EXPECTED_AGENTS
+        assert len(filters["assistants"]) == EXPECTED_ASSISTANTS
         assert sorted(filters["models"]) == sorted(EXPECTED_MODELS)
         assert len(filters["vendors"]) > 0
 
-    def test_agent_filter_entries_have_id_and_name(self, pipeline_output: dict) -> None:
-        for agent in pipeline_output["filters"]["agents"]:
-            assert "id" in agent
-            assert "name" in agent
+    def test_assistant_filter_entries_have_id_and_name(self, pipeline_output: dict) -> None:
+        for assistant in pipeline_output["filters"]["assistants"]:
+            assert "id" in assistant
+            assert "name" in assistant
 
 
 class TestPromptEntries:
@@ -67,12 +87,12 @@ class TestPromptEntries:
     def test_required_keys_present(self, pipeline_output: dict) -> None:
         for entry in pipeline_output["prompts"]:
             missing = REQUIRED_PROMPT_KEYS - set(entry.keys())
-            assert not missing, f"{entry['agent_id']}/{entry['label']}: missing {missing}"
+            assert not missing, f"{entry['assistant_id']}/{entry['label']}: missing {missing}"
 
     def test_required_metric_keys(self, pipeline_output: dict) -> None:
         for entry in pipeline_output["prompts"]:
             missing = REQUIRED_METRIC_KEYS - set(entry["metrics"].keys())
-            assert not missing, f"{entry['agent_id']}: missing metrics {missing}"
+            assert not missing, f"{entry['assistant_id']}: missing metrics {missing}"
 
     def test_tools_structure(self, pipeline_output: dict) -> None:
         for entry in pipeline_output["prompts"]:
@@ -82,15 +102,15 @@ class TestPromptEntries:
             assert isinstance(tools["names"], list)
             assert isinstance(tools["count"], int)
 
-    def test_no_null_agent_ids(self, pipeline_output: dict) -> None:
+    def test_no_null_assistant_ids(self, pipeline_output: dict) -> None:
         for entry in pipeline_output["prompts"]:
-            assert entry["agent_id"] is not None
-            assert entry["agent_id"] != ""
+            assert entry["assistant_id"] is not None
+            assert entry["assistant_id"] != ""
 
     def test_word_counts_positive(self, pipeline_output: dict) -> None:
         for entry in pipeline_output["prompts"]:
             assert entry["metrics"]["word_count"] > 0, (
-                f"{entry['agent_id']}/{entry['label']} has 0 words"
+                f"{entry['assistant_id']}/{entry['label']} has 0 words"
             )
 
 
@@ -101,40 +121,40 @@ class TestCurrentFlag:
         current = [p for p in pipeline_output["prompts"] if p["is_current"]]
         assert len(current) == EXPECTED_CURRENT
 
-    def test_every_agent_has_at_least_one_current(self, pipeline_output: dict) -> None:
-        current_agents = {
-            p["agent_id"] for p in pipeline_output["prompts"] if p["is_current"]
+    def test_every_assistant_has_at_least_one_current(self, pipeline_output: dict) -> None:
+        current_assistants = {
+            p["assistant_id"] for p in pipeline_output["prompts"] if p["is_current"]
         }
-        all_agents = {p["agent_id"] for p in pipeline_output["prompts"]}
-        missing = all_agents - current_agents
-        assert not missing, f"Agents with no current prompt: {missing}"
+        all_assistants = {p["assistant_id"] for p in pipeline_output["prompts"]}
+        missing = all_assistants - current_assistants
+        assert not missing, f"Assistants with no current prompt: {missing}"
 
-    def test_multi_model_agents_current_counts(self, pipeline_output: dict) -> None:
+    def test_multi_model_assistants_current_counts(self, pipeline_output: dict) -> None:
         current = [p for p in pipeline_output["prompts"] if p["is_current"]]
-        for agent_id, expected_count in MULTI_MODEL_AGENTS.items():
-            agent_current = [p for p in current if p["agent_id"] == agent_id]
-            assert len(agent_current) == expected_count, (
-                f"{agent_id}: expected {expected_count} current, got {len(agent_current)}"
+        for assistant_id, expected_count in MULTI_MODEL_ASSISTANTS.items():
+            assistant_current = [p for p in current if p["assistant_id"] == assistant_id]
+            assert len(assistant_current) == expected_count, (
+                f"{assistant_id}: expected {expected_count} current, got {len(assistant_current)}"
             )
 
-    def test_multi_model_agents_have_model_tags(self, pipeline_output: dict) -> None:
+    def test_multi_model_assistants_have_model_tags(self, pipeline_output: dict) -> None:
         current = [p for p in pipeline_output["prompts"] if p["is_current"]]
-        for agent_id in MULTI_MODEL_AGENTS:
-            agent_current = [p for p in current if p["agent_id"] == agent_id]
-            for p in agent_current:
+        for assistant_id in MULTI_MODEL_ASSISTANTS:
+            assistant_current = [p for p in current if p["assistant_id"] == assistant_id]
+            for p in assistant_current:
                 assert p["model"] is not None, (
-                    f"{agent_id}/{p['label']}: multi-model agent missing model tag"
+                    f"{assistant_id}/{p['label']}: multi-model assistant missing model tag"
                 )
 
-    def test_single_model_agents_have_one_current(self, pipeline_output: dict) -> None:
+    def test_single_model_assistants_have_one_current(self, pipeline_output: dict) -> None:
         current = [p for p in pipeline_output["prompts"] if p["is_current"]]
-        single_agents = {
-            p["agent_id"] for p in pipeline_output["prompts"]
-        } - set(MULTI_MODEL_AGENTS.keys())
-        for agent_id in single_agents:
-            agent_current = [p for p in current if p["agent_id"] == agent_id]
-            assert len(agent_current) == 1, (
-                f"{agent_id}: expected 1 current, got {len(agent_current)}"
+        single_assistants = {p["assistant_id"] for p in pipeline_output["prompts"]} - set(
+            MULTI_MODEL_ASSISTANTS.keys()
+        )
+        for assistant_id in single_assistants:
+            assistant_current = [p for p in current if p["assistant_id"] == assistant_id]
+            assert len(assistant_current) == 1, (
+                f"{assistant_id}: expected 1 current, got {len(assistant_current)}"
             )
 
 
@@ -158,9 +178,9 @@ class TestFilterLogic:
             f"Current models missing from filters: {current_models - filter_models}"
         )
 
-    def test_agent_filter_ids_match_prompts(self, pipeline_output: dict) -> None:
-        filter_ids = {a["id"] for a in pipeline_output["filters"]["agents"]}
-        prompt_ids = {p["agent_id"] for p in pipeline_output["prompts"]}
+    def test_assistant_filter_ids_match_prompts(self, pipeline_output: dict) -> None:
+        filter_ids = {a["id"] for a in pipeline_output["filters"]["assistants"]}
+        prompt_ids = {p["assistant_id"] for p in pipeline_output["prompts"]}
         assert filter_ids == prompt_ids
 
 
@@ -170,7 +190,8 @@ class TestLlmSkipped:
     def test_llm_analysis_is_none(self, pipeline_output: dict) -> None:
         for entry in pipeline_output["prompts"]:
             assert entry["llm_analysis"] is None, (
-                f"{entry['agent_id']}/{entry['label']}: llm_analysis should be None when skipped"
+                f"{entry['assistant_id']}/{entry['label']}: "
+                "llm_analysis should be None when skipped"
             )
 
     def test_comparisons_empty(self, pipeline_output: dict) -> None:

@@ -17,24 +17,24 @@ export function renderSortableTable(container, { columns, rows, onRowClick }) {
       return `<th class="${cls}" data-col="${c.key}">${c.label}</th>`;
     }).join('');
 
-    // Alternate group colors for multi-row agents, add border between groups
-    const agentCounts = {};
+    // Alternate group colors for multi-row assistants, add border between groups
+    const assistantCounts = {};
     for (const row of displayRows) {
-      if (row._agentId) agentCounts[row._agentId] = (agentCounts[row._agentId] || 0) + 1;
+      if (row._assistantId) assistantCounts[row._assistantId] = (assistantCounts[row._assistantId] || 0) + 1;
     }
     let groupColorIdx = 0;
     const groupColors = ['group-a', 'group-b'];
-    const agentColorMap = {};
+    const assistantColorMap = {};
     const tbody = displayRows.map((row, i) => {
       const prev = displayRows[i - 1];
-      const isNewGroup = !prev || prev._agentId !== row._agentId;
-      if (isNewGroup && row._agentId && agentCounts[row._agentId] > 1) {
-        agentColorMap[row._agentId] = groupColors[groupColorIdx % 2];
+      const isNewGroup = !prev || prev._assistantId !== row._assistantId;
+      if (isNewGroup && row._assistantId && assistantCounts[row._assistantId] > 1) {
+        assistantColorMap[row._assistantId] = groupColors[groupColorIdx % 2];
         groupColorIdx++;
       }
       const classes = [];
       if (isNewGroup && i > 0) classes.push('group-border');
-      if (agentColorMap[row._agentId]) classes.push(agentColorMap[row._agentId]);
+      if (assistantColorMap[row._assistantId]) classes.push(assistantColorMap[row._assistantId]);
       const cells = columns.map(c => `<td>${row[c.key] ?? ''}</td>`).join('');
       return `<tr class="${classes.join(' ')}" data-idx="${i}">${cells}</tr>`;
     }).join('');
