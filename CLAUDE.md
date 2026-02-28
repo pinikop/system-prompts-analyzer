@@ -13,6 +13,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `uv run spa` - Run analysis pipeline (outputs `web/data/analysis.json`)
 - `uv run spa --skip-llm` - Run pipeline without LLM analysis (no API key needed)
+- `uv run spa --force` - Reprocess everything, ignore LLM cache
+- `uv run spa --skip-update` - Use local data only, skip upstream checks
 - `uv run pytest` - Run all tests
 - `uv run pytest tests/test_metrics.py -k test_name` - Run a single test
 - `uv run ruff check src tests` - Lint
@@ -44,6 +46,11 @@ The system has two main parts connected by `analysis.json`:
 
 - `agents.yaml` - Registry of all coding assistants, their prompt file paths, and tool files
 - `web/data/analysis.json` - Pipeline output consumed by the web UI. This is the contract between pipeline and UI - changes to its schema affect both sides.
+- `src/spa/data_source.py` - File hashing and cache metadata utilities
+
+## Incremental Processing
+
+The pipeline caches LLM results in `analysis.json` via `cache_info.file_hashes`. On subsequent runs, unchanged files reuse their cached LLM analysis (skipping API calls). Use `--force` to bypass the cache.
 
 ## LLM Configuration
 

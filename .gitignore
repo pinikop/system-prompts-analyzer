@@ -10,6 +10,7 @@ dist/
 
 # Generated
 web/data/analysis.json
+.spa-data-source.json
 
 # IDE
 .idea/

@@ -41,8 +41,14 @@ uv run spa --llm-model gpt-4o
 - Anthropic - set `LLM_BASE_URL=https://api.anthropic.com/v1/`
 - Any OpenAI-compatible API - set `LLM_BASE_URL` to your endpoint
 
-## Skip LLM analysis
+## Pipeline flags
 
 ```bash
-uv run spa --skip-llm
+uv run spa --skip-llm      # skip LLM analysis, rule-based metrics only
+uv run spa --force         # reprocess everything, ignore cache
+uv run spa --skip-update   # use local data only, skip upstream checks
 ```
+
+## Data
+
+Prompt data lives in `data/` (git submodule). Incremental processing caches LLM results in `analysis.json` - unchanged files reuse their cached analysis on subsequent runs.
