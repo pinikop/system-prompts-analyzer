@@ -60,6 +60,9 @@ def run_pipeline(
     output_path: Path | None = None,
     skip_llm: bool = False,
     llm_model: str = DEFAULT_LLM_MODEL,
+    previous_analysis_path: Path | None = None,
+    force: bool = False,
+    skip_update: bool = False,
 ) -> dict:
     """Run the full analysis pipeline. Returns the output dict."""
     load_dotenv()
@@ -77,12 +80,28 @@ def run_pipeline(
         )
         sys.exit(1)
 
+    # Load previous analysis for incremental cache lookup
+    previous_file_hashes: dict[str, str] = {}
+    previous_prompts: dict[str, dict] = {}
+    if not force and previous_analysis_path and previous_analysis_path.exists():
+        try:
+            prev_data = json.loads(previous_analysis_path.read_text())
+            previous_file_hashes = prev_data.get("cache_info", {}).get("file_hashes", {})
+            previous_prompts = {
+                f"{p['assistant_id']}::{p['label']}": p
+                for p in prev_data.get("prompts", [])
+            }
+        except (json.JSONDecodeError, KeyError):
+            pass
+
     prompts_out: list[dict] = []
     all_models: set[str] = set()
     all_assistants: list[dict] = []
     all_vendors: set[str] = set()
     # Track raw text and tool names for LLM analysis
     llm_inputs: dict[str, tuple[str, list[str], str]] = {}
+    # Track prompt file paths for cache hash comparison
+    prompt_paths: dict[str, str] = {}
 
     for assistant_id, assistant in registry.items():
         assistant_name = assistant["name"]
@@ -137,6 +156,7 @@ def run_pipeline(
                     [t.name for t in merged_tools],
                     assistant_name,
                 )
+                prompt_paths[prompt_key] = prompt_entry["path"]
 
     # Run LLM analysis on current prompts
     comparisons: list[dict] = []
@@ -154,6 +174,23 @@ def run_pipeline(
         logger.info("Running LLM analysis on %d prompts...", len(llm_inputs))
 
         for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
+            # Check cache: reuse previous LLM analysis if file is unchanged
+            path_str = prompt_paths.get(prompt_key)
+            if path_str and previous_prompts:
+                current_hash = compute_file_hash(DATA_DIR / path_str)
+                cached_hash = previous_file_hashes.get(path_str)
+                if current_hash == cached_hash and prompt_key in previous_prompts:
+                    cached_llm = previous_prompts[prompt_key].get("llm_analysis")
+                    if cached_llm:
+                        logger.info("  %s: using cached LLM analysis", prompt_key)
+                        analyses[prompt_key] = AssistantAnalysis(**cached_llm)
+                        assistant_id, label = prompt_key.split("::", 1)
+                        for entry in prompts_out:
+                            if entry["assistant_id"] == assistant_id and entry["label"] == label:
+                                entry["llm_analysis"] = cached_llm
+                                break
+                        continue
+
             try:
                 analysis, usage = analyze_assistant(
                     raw_text=raw_text,
