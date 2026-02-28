@@ -11,6 +11,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from spa.config import DATA_DIR, DEFAULT_LLM_MODEL, WEB_DATA_DIR, load_assistant_registry
+from spa.data_source import compute_file_hash
 from spa.metrics.rule_based import compute_metrics
 from spa.metrics.tool_metrics import compute_tool_metrics
 from spa.parsers.base import ToolDefinition
@@ -193,8 +194,20 @@ def run_pipeline(
                 total_tokens_used["completion_tokens"],
             )
 
+    # Compute file hashes for all processed prompt files
+    file_hashes: dict[str, str] = {}
+    for assistant in registry.values():
+        for prompt_entry in assistant.get("prompts", []):
+            prompt_path = DATA_DIR / prompt_entry["path"]
+            if prompt_path.exists():
+                file_hashes[prompt_entry["path"]] = compute_file_hash(prompt_path)
+
     output = {
         "generated_at": datetime.now(UTC).isoformat(),
+        "cache_info": {
+            "data_source_commit": None,
+            "file_hashes": file_hashes,
+        },
         "meta": {
             "llm_model": llm_model_used,
             "assistant_count": len(all_assistants),

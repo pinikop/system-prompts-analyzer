@@ -55,11 +55,20 @@ class TestOutputSchema:
     def test_top_level_keys(self, pipeline_output: dict) -> None:
         assert set(pipeline_output.keys()) == {
             "generated_at",
+            "cache_info",
             "meta",
             "prompts",
             "comparisons",
             "filters",
         }
+
+    def test_output_includes_cache_info(self, pipeline_output: dict) -> None:
+        """Output JSON includes cache_info metadata."""
+        assert "cache_info" in pipeline_output
+        cache_info = pipeline_output["cache_info"]
+        assert "data_source_commit" in cache_info
+        assert "file_hashes" in cache_info
+        assert isinstance(cache_info["file_hashes"], dict)
 
     def test_meta_counts(self, pipeline_output: dict) -> None:
         meta = pipeline_output["meta"]
