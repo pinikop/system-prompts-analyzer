@@ -21,4 +21,4 @@ def test_cli_help():
     runner = CliRunner()
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "System Prompts Analyzer" in result.stdout
+    assert "Analyze coding assistant system prompts" in result.stdout

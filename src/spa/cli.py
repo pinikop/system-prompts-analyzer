@@ -3,13 +3,12 @@
 import typer
 from rich.console import Console
 
-console = Console()
-
 app = typer.Typer(
     name="spa",
     help="System Prompts Analyzer - analyze coding assistant prompts",
     add_completion=True,
 )
+console = Console()
 
 
 @app.command()
