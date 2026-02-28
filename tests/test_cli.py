@@ -136,3 +136,25 @@ def test_version_flag():
     assert result.exit_code == 0
     # Should contain version string
     assert "spa" in result.stdout.lower() or "version" in result.stdout.lower()
+
+
+def test_output_path_validation_invalid_parent():
+    """Test that invalid output parent directory is caught."""
+    from spa.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["--output", "/nonexistent/dir/output.json"])
+    # Should fail with validation error
+    assert result.exit_code != 0
+    assert "directory" in result.stdout.lower() or "not exist" in result.stdout.lower()
+
+
+def test_output_path_validation_valid(tmp_path):
+    """Test that valid output path is accepted."""
+    from spa.cli import app
+
+    output_file = tmp_path / "output.json"
+    runner = CliRunner()
+    result = runner.invoke(app, ["--output", str(output_file)])
+    # Should succeed (validation passes)
+    assert result.exit_code == 0

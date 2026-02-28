@@ -1,5 +1,6 @@
 """CLI interface for System Prompts Analyzer."""
 
+import logging
 from pathlib import Path
 
 import typer
@@ -81,6 +82,29 @@ def main(
         console.print("[red]Error: --verbose and --quiet are mutually exclusive[/red]")
         raise typer.Exit(1)
 
+    # Validate output path
+    if output is not None:
+        parent_dir = output.parent
+        if not parent_dir.exists():
+            console.print(
+                f"[red]Error: Output directory does not exist: {parent_dir}[/red]"
+            )
+            console.print("Create the directory first or use a valid path.")
+            raise typer.Exit(1)
+
+    # Set up logging based on verbosity
+    if verbose:
+        log_level = logging.DEBUG
+    elif quiet:
+        log_level = logging.WARNING
+    else:
+        log_level = logging.INFO
+
+    logging.basicConfig(
+        level=log_level,
+        format="%(levelname)s: %(message)s",
+    )
+
     console.print(f"Output: {output}")
     console.print(f"Skip LLM: {skip_llm}")
     console.print(f"LLM Model: {llm_model}")
@@ -88,6 +112,7 @@ def main(
     console.print(f"Skip Update: {skip_update}")
     console.print(f"Verbose: {verbose}")
     console.print(f"Quiet: {quiet}")
+    console.print(f"Log level: {logging.getLevelName(log_level)}")
 
 
 if __name__ == "__main__":
