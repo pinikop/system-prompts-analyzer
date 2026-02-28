@@ -286,12 +286,26 @@ def main() -> None:
         default=DEFAULT_LLM_MODEL,
         help=f"LLM model to use (default: {DEFAULT_LLM_MODEL})",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Reprocess everything, ignore cache",
+    )
+    parser.add_argument(
+        "--skip-update",
+        action="store_true",
+        default=False,
+        help="Don't check upstream, use local data",
+    )
     args = parser.parse_args()
 
     result = run_pipeline(
         output_path=args.output,
         skip_llm=args.skip_llm,
         llm_model=args.llm_model,
+        force=args.force,
+        skip_update=args.skip_update,
     )
     count = result["meta"]["prompt_count"]
     assistants = result["meta"]["assistant_count"]
