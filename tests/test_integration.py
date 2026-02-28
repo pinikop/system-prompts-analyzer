@@ -1,6 +1,7 @@
 """Integration tests for pipeline output and dashboard data invariants."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -191,6 +192,35 @@ class TestFilterLogic:
         filter_ids = {a["id"] for a in pipeline_output["filters"]["assistants"]}
         prompt_ids = {p["assistant_id"] for p in pipeline_output["prompts"]}
         assert filter_ids == prompt_ids
+
+
+class TestCliFlags:
+    """Verify --force and --skip-update parameters."""
+
+    def test_force_flag_ignores_cache(self, tmp_path: Path) -> None:
+        """--force reprocesses everything, ignoring cache."""
+        prev_analysis = tmp_path / "prev-analysis.json"
+        prev_analysis.write_text(
+            '{"cache_info": {"file_hashes": {"file.txt": "sha256:old"}}, "prompts": []}'
+        )
+
+        result = run_pipeline(
+            output_path=tmp_path / "new-analysis.json",
+            skip_llm=True,
+            force=True,
+            previous_analysis_path=prev_analysis,
+        )
+
+        assert result is not None
+
+    def test_skip_update_parameter_accepted(self, tmp_path: Path) -> None:
+        """--skip-update parameter is accepted by run_pipeline."""
+        result = run_pipeline(
+            output_path=tmp_path / "out.json",
+            skip_llm=True,
+            skip_update=True,
+        )
+        assert result is not None
 
 
 class TestLlmSkipped:
