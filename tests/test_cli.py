@@ -78,3 +78,61 @@ def test_skip_update_flag():
     runner = CliRunner()
     result = runner.invoke(app, ["--skip-update"])
     assert result.exit_code == 0
+
+
+def test_verbose_flag():
+    """Test --verbose flag."""
+    from spa.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["--verbose"])
+    assert result.exit_code == 0
+
+
+def test_verbose_flag_short():
+    """Test -v flag for verbose."""
+    from spa.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["-v"])
+    assert result.exit_code == 0
+
+
+def test_quiet_flag():
+    """Test --quiet flag."""
+    from spa.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["--quiet"])
+    assert result.exit_code == 0
+
+
+def test_quiet_flag_short():
+    """Test -q flag for quiet."""
+    from spa.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["-q"])
+    assert result.exit_code == 0
+
+
+def test_verbose_quiet_mutual_exclusion():
+    """Test that --verbose and --quiet cannot be used together."""
+    from spa.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["--verbose", "--quiet"])
+    # Should fail with mutually exclusive error
+    assert result.exit_code != 0
+
+
+def test_version_flag():
+    """Test --version flag."""
+    from spa.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["--version"])
+    # Version flag should exit successfully
+    assert result.exit_code == 0
+    # Should contain version string
+    assert "spa" in result.stdout.lower() or "version" in result.stdout.lower()
