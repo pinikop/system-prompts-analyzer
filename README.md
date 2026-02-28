@@ -82,7 +82,29 @@ uv run spa --skip-update
 
 # Custom LLM model
 uv run spa --llm-model gpt-4o
+
+# Custom output path
+uv run spa --output custom/path/analysis.json
+uv run spa -o custom/path/analysis.json
+
+# Verbose logging (DEBUG level)
+uv run spa --verbose
+uv run spa -v
+
+# Quiet mode (WARNING level only)
+uv run spa --quiet
+uv run spa -q
+
+# Show version
+uv run spa --version
 ```
+
+**New in 0.2.0:**
+- Shell completion support (install with `spa --install-completion bash`)
+- Input validation (output path parent directory must exist)
+- Verbosity control with `--verbose`/`--quiet` flags
+- Version flag with `--version`
+- Helpful warnings for ineffective flag combinations
 
 ### Common Workflows
 
