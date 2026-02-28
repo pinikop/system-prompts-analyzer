@@ -1,11 +1,14 @@
 """Tests for GitHub data source and caching."""
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-from spa.data_source import compute_file_hash, get_upstream_commit, load_cache_metadata, save_cache_metadata
+from spa.data_source import (
+    compute_file_hash,
+    get_upstream_commit,
+    load_cache_metadata,
+    save_cache_metadata,
+)
 
 
 def test_compute_file_hash(tmp_path: Path) -> None:

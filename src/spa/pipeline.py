@@ -88,8 +88,7 @@ def run_pipeline(
             prev_data = json.loads(previous_analysis_path.read_text())
             previous_file_hashes = prev_data.get("cache_info", {}).get("file_hashes", {})
             previous_prompts = {
-                f"{p['assistant_id']}::{p['label']}": p
-                for p in prev_data.get("prompts", [])
+                f"{p['assistant_id']}::{p['label']}": p for p in prev_data.get("prompts", [])
             }
         except (json.JSONDecodeError, KeyError):
             pass
