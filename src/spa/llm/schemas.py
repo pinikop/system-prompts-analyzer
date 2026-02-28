@@ -34,3 +34,21 @@ class AssistantAnalysis(BaseModel):
         description="How independently the assistant acts without asking the user"
     )
     error_handling: str = Field(description="1-2 sentence approach to errors")
+
+    # Operational fields
+    permission_rules: list[str] = Field(
+        description="3-5 rules about when assistant asks permission vs. acts autonomously",
+        min_length=3,
+        max_length=5,
+    )
+    workflow_approach: str = Field(
+        description="1-2 sentences on workflow (TDD, debugging, planning methodology)"
+    )
+    safety_rules: list[str] = Field(
+        description="3-5 key safety constraints or prohibited actions",
+        min_length=3,
+        max_length=5,
+    )
+    tool_philosophy: str = Field(
+        description="1-2 sentences on tool usage preferences and patterns"
+    )

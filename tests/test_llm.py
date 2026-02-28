@@ -32,6 +32,19 @@ VALID_ANALYSIS = {
     "safety_details": "Extensive safety rules around destructive actions and data handling.",
     "autonomy_level": "medium",
     "error_handling": "Investigates root causes before applying fixes.",
+    # Operational fields
+    "permission_rules": [
+        "Ask before destructive operations",
+        "Confirm before creating PRs",
+        "Act autonomously for local edits and tests",
+    ],
+    "workflow_approach": "Strict TDD: write failing test, implement minimal code, refactor.",
+    "safety_rules": [
+        "Never commit credentials or secrets",
+        "Never use --force flags without explicit permission",
+        "Always verify tests pass before claiming completion",
+    ],
+    "tool_philosophy": "Prefer dedicated tools (Read/Edit) over shell commands (cat/sed).",
 }
 
 
@@ -71,6 +84,36 @@ class TestAssistantAnalysisSchema:
         dumped = analysis.model_dump()
         restored = AssistantAnalysis(**dumped)
         assert restored == analysis
+
+    def test_operational_fields_required(self) -> None:
+        """Operational fields are required and validated."""
+        data = {**VALID_ANALYSIS}  # Start with valid base
+
+        # Add operational fields
+        data["permission_rules"] = [
+            "Ask before destructive ops",
+            "Confirm before PRs",
+            "Act autonomously for edits",
+        ]
+        data["workflow_approach"] = "Strict TDD with test-first discipline."
+        data["safety_rules"] = [
+            "Never commit secrets",
+            "Never force-push",
+            "Always verify tests",
+        ]
+        data["tool_philosophy"] = "Prefer Read/Edit over shell commands."
+
+        analysis = AssistantAnalysis(**data)
+        assert len(analysis.permission_rules) == 3
+        assert analysis.workflow_approach.startswith("Strict TDD")
+        assert len(analysis.safety_rules) == 3
+        assert "Read/Edit" in analysis.tool_philosophy
+
+    def test_permission_rules_length_validation(self) -> None:
+        """permission_rules must have 3-5 items."""
+        data = {**VALID_ANALYSIS, "permission_rules": ["only one"]}
+        with pytest.raises(ValidationError):
+            AssistantAnalysis(**data)
 
 
 class TestTokenUsage:
