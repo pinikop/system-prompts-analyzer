@@ -35,7 +35,7 @@ The system has two main parts connected by `analysis.json`:
 
 **Web dashboard** (`web/`): Static vanilla JS SPA reading `analysis.json`
 
-- Hash-based router in `app.js` with three routes: `/` (dashboard), `/assistant/:id` (detail), `/compare`
+- Hash-based router in `app.js` with routes: `/` (dashboard), `/assistant/:id` (detail), `/compare`, `/operations`
 - `state.js` - Global data store with filter state and pub/sub for reactivity
 - `views/` - Page renderers; `components/` - Reusable UI (chart, table, filter bar)
 - Uses Pico CSS (classless) with minimal custom CSS
@@ -64,3 +64,4 @@ The pipeline caches LLM results in `analysis.json` via `cache_info.file_hashes`.
 
 - The web UI uses Pico CSS (classless) with minimal custom CSS
 - Python 3.12+, `uv` for deps, `ruff` for lint/format, `pytest` for tests
+- Operational analysis available at `/operations` route (requires LLM analysis)
