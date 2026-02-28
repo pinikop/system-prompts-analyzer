@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from spa.data_source import compute_file_hash, load_cache_metadata, save_cache_metadata
+from spa.data_source import compute_file_hash, get_upstream_commit, load_cache_metadata, save_cache_metadata
 
 
 def test_compute_file_hash(tmp_path: Path) -> None:
@@ -41,3 +41,17 @@ def test_save_and_load_cache_metadata(tmp_path: Path) -> None:
     loaded = load_cache_metadata(cache_file)
 
     assert loaded == metadata
+
+
+def test_get_upstream_commit() -> None:
+    """Fetches latest commit SHA from GitHub API."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"sha": "abc123def456"}
+    mock_response.raise_for_status = MagicMock()
+
+    with patch("requests.get", return_value=mock_response) as mock_get:
+        sha = get_upstream_commit("owner/repo")
+
+    assert sha == "abc123def456"
+    mock_get.assert_called_once()
+    assert "repos/owner/repo/commits" in mock_get.call_args[0][0]
