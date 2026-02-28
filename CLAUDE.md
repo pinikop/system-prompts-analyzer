@@ -45,6 +45,14 @@ The system has two main parts connected by `analysis.json`:
 - `agents.yaml` - Registry of all coding assistants, their prompt file paths, and tool files
 - `web/data/analysis.json` - Pipeline output consumed by the web UI. This is the contract between pipeline and UI - changes to its schema affect both sides.
 
+## LLM Configuration
+
+**Default provider:** Nebius hosting Qwen model
+- `DEFAULT_LLM_MODEL` and `DEFAULT_LLM_BASE_URL` defined in `config.py`
+- Override via `LLM_BASE_URL` environment variable for other providers
+- API key always required in `.env` file
+- Model can be specified via `--llm-model` CLI flag
+
 ## Conventions
 
 - The web UI uses Pico CSS (classless) with minimal custom CSS
