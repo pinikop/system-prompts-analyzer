@@ -1,6 +1,7 @@
 """Tests for LLM analysis schemas, prompt building, and rankings."""
 
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -305,3 +306,28 @@ class TestAnalyzeAssistantIntegration:
         assert usage["prompt_tokens"] == 2200  # 1000 + 1200
         assert usage["completion_tokens"] == 250  # 100 + 150
         assert usage["total_tokens"] == 2450  # 1100 + 1350
+
+
+class TestBaseUrlConfiguration:
+    def test_uses_default_when_env_not_set(self) -> None:
+        """Uses DEFAULT_LLM_BASE_URL when env var not set."""
+        from spa.config import DEFAULT_LLM_BASE_URL
+
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("litellm.completion") as mock_completion:
+                mock_completion.return_value = MagicMock(
+                    choices=[MagicMock(message=MagicMock(content=json.dumps(VALID_ANALYSIS)))],
+                    usage=None,
+                )
+
+                from spa.llm.analyzer import analyze_assistant
+
+                analyze_assistant(
+                    raw_text="test",
+                    tool_names=[],
+                    assistant_name="TestBot",
+                    model="test-model",
+                )
+
+                call_kwargs = mock_completion.call_args[1]
+                assert call_kwargs["api_base"] == DEFAULT_LLM_BASE_URL

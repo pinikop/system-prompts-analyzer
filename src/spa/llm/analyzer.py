@@ -4,6 +4,7 @@ import logging
 import os
 from dataclasses import dataclass
 
+from spa.config import DEFAULT_LLM_BASE_URL
 from spa.llm.schemas import AssistantAnalysis
 
 logger = logging.getLogger(__name__)
@@ -119,7 +120,7 @@ def analyze_assistant(
     import litellm
 
     api_key = os.environ.get("LLM_API_KEY")
-    base_url = os.environ.get("LLM_BASE_URL")
+    base_url = os.environ.get("LLM_BASE_URL") or DEFAULT_LLM_BASE_URL
 
     prompt = _build_prompt(raw_text, tool_names, assistant_name)
 
