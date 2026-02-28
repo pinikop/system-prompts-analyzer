@@ -46,46 +46,45 @@ class TokenUsage:
         )
 
 
-PROMPT_TEMPLATE = """\
-You are analyzing the system prompt of an AI coding assistant called "{assistant_name}".
-
-Below is the full system prompt text, followed by a list of tools available to this assistant.
-
-<system_prompt>
-{raw_text}
-</system_prompt>
-
-<tools>
-{tool_list}
-</tools>
-
-Analyze this system prompt and return a JSON object with exactly these fields:
-
-- "identity" (string): 1-2 sentence identity statement for this assistant
-- "tone" (array of 3-5 strings): tone descriptors, e.g. ["concise", "direct", "cautious"]
-- "personality" (string): 1-2 sentence personality summary
-- "behavioral_rules" (array of 5-10 strings): key behavioral rules extracted from the prompt
-- "unique_features" (array of 3-5 strings): features that distinguish this coding assistant
-- "coding_philosophy" (string): 1-2 sentence summary of coding approach
-- "safety_emphasis" (string): one of "low", "medium", "high", "very_high"
-- "safety_details" (string): 1-2 sentence description of safety approach
-- "autonomy_level" (string): one of "low", "medium", "high"
-- "error_handling" (string): 1-2 sentence approach to errors
-
-Return ONLY a valid JSON object with these fields. No markdown fences, no extra text."""
-
-
 def _build_prompt(raw_text: str, tool_names: list[str], assistant_name: str) -> str:
-    """Build the analysis prompt from template."""
-    if tool_names:
-        tool_list = "\n".join(f"- {name}" for name in tool_names)
-    else:
-        tool_list = "No tools defined."
-    return PROMPT_TEMPLATE.format(
-        assistant_name=assistant_name,
-        raw_text=raw_text,
-        tool_list=tool_list,
-    )
+    """Build LLM prompt for analyzing a coding assistant's system prompt."""
+    tools = "\n".join(f"- {t}" for t in tool_names) if tool_names else "No tools defined."
+
+    # Get schema description for field validation
+    schema_desc = AssistantAnalysis.model_json_schema()
+
+    return f"""Analyze this system prompt for the coding assistant "{assistant_name}".
+
+Extract thematic and operational information. Focus on:
+
+**Operational Instructions:**
+- permission_rules: When does it ask permission vs. act autonomously? Extract 3-5 specific rules.
+- workflow_approach: What methodology does it follow (TDD, debugging process, planning)?
+- safety_rules: What is it prohibited from doing? What must it always/never do? Extract 3-5 key rules.
+- tool_philosophy: How should it use tools? Any preferences or constraints?
+
+**Thematic Analysis:**
+- identity: {schema_desc['properties']['identity']['description']}
+- tone: {schema_desc['properties']['tone']['description']}
+- personality: {schema_desc['properties']['personality']['description']}
+- behavioral_rules: {schema_desc['properties']['behavioral_rules']['description']}
+- unique_features: {schema_desc['properties']['unique_features']['description']}
+- coding_philosophy: {schema_desc['properties']['coding_philosophy']['description']}
+- safety_emphasis: {schema_desc['properties']['safety_emphasis']['description']}
+  Options: {', '.join(schema_desc['properties']['safety_emphasis']['enum'])}
+- safety_details: {schema_desc['properties']['safety_details']['description']}
+- autonomy_level: {schema_desc['properties']['autonomy_level']['description']}
+  Options: {', '.join(schema_desc['properties']['autonomy_level']['enum'])}
+- error_handling: {schema_desc['properties']['error_handling']['description']}
+
+**Available tools:**
+{tools}
+
+**System prompt to analyze:**
+{raw_text}
+
+Return valid JSON matching the AssistantAnalysis schema.
+"""
 
 
 def _parse_response(content: str) -> AssistantAnalysis:

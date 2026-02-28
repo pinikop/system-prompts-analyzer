@@ -163,7 +163,18 @@ class TestPromptBuilding:
         prompt = _build_prompt("text", [], "Bot")
         assert "safety_emphasis" in prompt
         assert "autonomy_level" in prompt
-        assert '"low", "medium", "high"' in prompt
+        assert "low, medium, high" in prompt
+
+    def test_prompt_includes_operational_instructions(self) -> None:
+        """Prompt requests extraction of operational fields."""
+        prompt = _build_prompt("some text", ["tool_a"], "TestBot")
+
+        # Verify operational instructions are present
+        assert "permission_rules" in prompt
+        assert "workflow_approach" in prompt
+        assert "safety_rules" in prompt
+        assert "tool_philosophy" in prompt
+        assert "When does it ask permission vs. act autonomously" in prompt
 
 
 class TestParseResponse:
