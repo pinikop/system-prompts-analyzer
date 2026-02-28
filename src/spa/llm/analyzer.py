@@ -55,7 +55,7 @@ def _build_prompt(raw_text: str, tool_names: list[str], assistant_name: str) -> 
 
     return f"""Analyze this system prompt for the coding assistant "{assistant_name}".
 
-Extract thematic and operational information. Focus on:
+Extract ALL fields below. Both operational and thematic sections are required.
 
 **Operational Instructions:**
 - permission_rules: When does it ask permission vs. act autonomously? Extract 3-5 rules.
@@ -64,18 +64,18 @@ Extract thematic and operational information. Focus on:
 - tool_philosophy: How should it use tools? Any preferences or constraints?
 
 **Thematic Analysis:**
-- identity: {schema_desc['properties']['identity']['description']}
-- tone: {schema_desc['properties']['tone']['description']}
-- personality: {schema_desc['properties']['personality']['description']}
-- behavioral_rules: {schema_desc['properties']['behavioral_rules']['description']}
-- unique_features: {schema_desc['properties']['unique_features']['description']}
-- coding_philosophy: {schema_desc['properties']['coding_philosophy']['description']}
-- safety_emphasis: {schema_desc['properties']['safety_emphasis']['description']}
-  Options: {', '.join(schema_desc['properties']['safety_emphasis']['enum'])}
-- safety_details: {schema_desc['properties']['safety_details']['description']}
-- autonomy_level: {schema_desc['properties']['autonomy_level']['description']}
-  Options: {', '.join(schema_desc['properties']['autonomy_level']['enum'])}
-- error_handling: {schema_desc['properties']['error_handling']['description']}
+- identity: {schema_desc["properties"]["identity"]["description"]}
+- tone: {schema_desc["properties"]["tone"]["description"]}
+- personality: {schema_desc["properties"]["personality"]["description"]}
+- behavioral_rules: {schema_desc["properties"]["behavioral_rules"]["description"]}
+- unique_features: {schema_desc["properties"]["unique_features"]["description"]}
+- coding_philosophy: {schema_desc["properties"]["coding_philosophy"]["description"]}
+- safety_emphasis: {schema_desc["properties"]["safety_emphasis"]["description"]}
+  Options: {", ".join(schema_desc["properties"]["safety_emphasis"]["enum"])}
+- safety_details: {schema_desc["properties"]["safety_details"]["description"]}
+- autonomy_level: {schema_desc["properties"]["autonomy_level"]["description"]}
+  Options: {", ".join(schema_desc["properties"]["autonomy_level"]["enum"])}
+- error_handling: {schema_desc["properties"]["error_handling"]["description"]}
 
 **Available tools:**
 {tools}
@@ -84,6 +84,7 @@ Extract thematic and operational information. Focus on:
 {raw_text}
 
 Return valid JSON matching the AssistantAnalysis schema.
+IMPORTANT: Include ALL fields from both Operational Instructions and Thematic Analysis sections.
 """
 
 

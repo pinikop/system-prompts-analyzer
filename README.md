@@ -28,8 +28,9 @@ cp .env.example .env
 # 3. Run the pipeline
 uv run spa
 
-# 4. View results
-# Open web/index.html in your browser
+# 4. View results in browser
+cd web && python3 -m http.server 8000
+# Then open http://localhost:8000
 ```
 
 ## What You Get
@@ -131,6 +132,24 @@ uv run spa --force
 ```bash
 uv run spa --skip-update --skip-llm
 ```
+
+### Viewing the Dashboard
+
+**Option 1: Local web server (recommended):**
+```bash
+cd web && python3 -m http.server 8000
+# Open http://localhost:8000 in your browser
+```
+
+**Option 2: Direct file open:**
+```bash
+xdg-open web/index.html  # Linux
+open web/index.html      # macOS
+```
+
+Or open `file:///path/to/project/web/index.html` directly in your browser.
+
+**Note:** The local server is recommended to avoid CORS issues when loading `analysis.json`.
 
 ## How It Works
 
