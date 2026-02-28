@@ -1,6 +1,5 @@
 """Orchestrates parse -> metrics -> LLM analysis -> JSON output."""
 
-import argparse
 import json
 import logging
 import os
@@ -262,56 +261,3 @@ def run_pipeline(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(output, indent=2, ensure_ascii=False))
     return output
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="System Prompts Analyzer")
-    parser.add_argument(
-        "--output",
-        "-o",
-        type=Path,
-        default=None,
-        help="Output JSON path (default: web/data/analysis.json)",
-    )
-    parser.add_argument(
-        "--skip-llm",
-        action="store_true",
-        default=False,
-        help="Skip LLM analysis and only run rule-based metrics",
-    )
-    parser.add_argument(
-        "--llm-model",
-        type=str,
-        default=DEFAULT_LLM_MODEL,
-        help=f"LLM model to use (default: {DEFAULT_LLM_MODEL})",
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        default=False,
-        help="Reprocess everything, ignore cache",
-    )
-    parser.add_argument(
-        "--skip-update",
-        action="store_true",
-        default=False,
-        help="Don't check upstream, use local data",
-    )
-    args = parser.parse_args()
-
-    result = run_pipeline(
-        output_path=args.output,
-        skip_llm=args.skip_llm,
-        llm_model=args.llm_model,
-        force=args.force,
-        skip_update=args.skip_update,
-    )
-    count = result["meta"]["prompt_count"]
-    assistants = result["meta"]["assistant_count"]
-    llm_status = f" (LLM: {result['meta']['llm_model']})" if result["meta"]["llm_model"] else ""
-    out = args.output or WEB_DATA_DIR / "analysis.json"
-    print(f"Analyzed {count} prompts from {assistants} assistants{llm_status} -> {out}")
-
-
-if __name__ == "__main__":
-    main()

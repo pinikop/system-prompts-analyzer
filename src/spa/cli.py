@@ -6,7 +6,8 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from spa.config import DEFAULT_LLM_MODEL
+from spa.config import DEFAULT_LLM_MODEL, WEB_DATA_DIR
+from spa.pipeline import run_pipeline
 
 app = typer.Typer(
     name="spa",
@@ -105,14 +106,31 @@ def main(
         format="%(levelname)s: %(message)s",
     )
 
-    console.print(f"Output: {output}")
-    console.print(f"Skip LLM: {skip_llm}")
-    console.print(f"LLM Model: {llm_model}")
-    console.print(f"Force: {force}")
-    console.print(f"Skip Update: {skip_update}")
-    console.print(f"Verbose: {verbose}")
-    console.print(f"Quiet: {quiet}")
-    console.print(f"Log level: {logging.getLevelName(log_level)}")
+    # Determine output path
+    output_path = output if output is not None else WEB_DATA_DIR / "analysis.json"
+
+    # Run the pipeline
+    result = run_pipeline(
+        output_path=output_path,
+        skip_llm=skip_llm,
+        llm_model=llm_model,
+        previous_analysis_path=output_path if not force else None,
+        force=force,
+        skip_update=skip_update,
+    )
+
+    # Report results
+    count = result["meta"]["prompt_count"]
+    assistants = result["meta"]["assistant_count"]
+    llm_status = (
+        f" (LLM: {result['meta']['llm_model']})" if result["meta"]["llm_model"] else ""
+    )
+
+    if not quiet:
+        console.print(
+            f"[green]✓[/green] Analyzed {count} prompts from {assistants} assistants{llm_status}"
+        )
+        console.print(f"  → {output_path}")
 
 
 if __name__ == "__main__":

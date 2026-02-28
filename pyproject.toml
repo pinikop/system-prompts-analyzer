@@ -1,6 +1,6 @@
 [project]
 name = "spa"
-version = "0.1.0"
+version = "0.2.0"
 description = "Analyze and compare system prompts from AI coding agents"
 readme = "README.md"
 authors = [
@@ -20,7 +20,7 @@ dependencies = [
 llm = ["litellm>=1.0"]
 
 [project.scripts]
-spa = "spa.pipeline:main"
+spa = "spa.cli:app"
 
 [build-system]
 requires = ["hatchling"]

@@ -158,3 +158,23 @@ def test_output_path_validation_valid(tmp_path):
     result = runner.invoke(app, ["--output", str(output_file)])
     # Should succeed (validation passes)
     assert result.exit_code == 0
+
+
+def test_pipeline_integration_skip_llm(tmp_path):
+    """Test that CLI integrates with pipeline (skip LLM for speed)."""
+    from spa.cli import app
+
+    output_file = tmp_path / "test_output.json"
+    runner = CliRunner()
+    result = runner.invoke(app, ["--skip-llm", "--output", str(output_file)])
+
+    # Should complete successfully
+    assert result.exit_code == 0
+    # Output file should be created
+    assert output_file.exists()
+    # Should contain valid JSON
+    import json
+
+    data = json.loads(output_file.read_text())
+    assert "prompts" in data
+    assert "meta" in data
