@@ -331,3 +331,26 @@ class TestBaseUrlConfiguration:
 
                 call_kwargs = mock_completion.call_args[1]
                 assert call_kwargs["api_base"] == DEFAULT_LLM_BASE_URL
+
+    def test_env_var_overrides_default(self) -> None:
+        """LLM_BASE_URL env var overrides DEFAULT_LLM_BASE_URL."""
+        custom_url = "https://api.openai.com/v1/"
+
+        with patch.dict(os.environ, {"LLM_BASE_URL": custom_url}):
+            with patch("litellm.completion") as mock_completion:
+                mock_completion.return_value = MagicMock(
+                    choices=[MagicMock(message=MagicMock(content=json.dumps(VALID_ANALYSIS)))],
+                    usage=None,
+                )
+
+                from spa.llm.analyzer import analyze_assistant
+
+                analyze_assistant(
+                    raw_text="test",
+                    tool_names=[],
+                    assistant_name="TestBot",
+                    model="test-model",
+                )
+
+                call_kwargs = mock_completion.call_args[1]
+                assert call_kwargs["api_base"] == custom_url
