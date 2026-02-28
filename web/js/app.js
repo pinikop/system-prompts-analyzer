@@ -33,10 +33,12 @@ async function init() {
   const { renderDashboard } = await import('./views/dashboard.js');
   const { renderAssistantDetail } = await import('./views/assistant-detail.js');
   const { renderCompare } = await import('./views/compare.js');
+  const { renderOperations } = await import('./views/operations.js');
 
   registerRoute('/', renderDashboard);
   registerRoute('/assistant/:id', renderAssistantDetail);
   registerRoute('/compare', renderCompare);
+  registerRoute('/operations', renderOperations);
 
   window.addEventListener('hashchange', navigate);
   navigate();
