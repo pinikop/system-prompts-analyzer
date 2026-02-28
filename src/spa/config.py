@@ -24,6 +24,7 @@ DIRECTIVE_KEYWORDS = [
 ]
 
 DEFAULT_LLM_MODEL = "openai/Qwen/Qwen3-235B-A22B-Instruct-2507"
+DEFAULT_LLM_BASE_URL = "https://api.studio.nebius.com/v1/"
 
 TOOL_CATEGORIES = {
     "file_ops": ["read", "write", "edit", "create", "delete", "rename", "move", "copy"],
