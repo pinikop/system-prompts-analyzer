@@ -83,6 +83,12 @@ def main(
         console.print("[red]Error: --verbose and --quiet are mutually exclusive[/red]")
         raise typer.Exit(1)
 
+    # Warn about ineffective flag combinations
+    if skip_llm and llm_model != DEFAULT_LLM_MODEL:
+        console.print(
+            "[yellow]Warning: --llm-model has no effect when --skip-llm is set[/yellow]"
+        )
+
     # Validate output path
     if output is not None:
         parent_dir = output.parent

@@ -178,3 +178,20 @@ def test_pipeline_integration_skip_llm(tmp_path):
     data = json.loads(output_file.read_text())
     assert "prompts" in data
     assert "meta" in data
+
+
+def test_llm_model_with_skip_llm_warning(tmp_path):
+    """Test that --llm-model with --skip-llm shows warning."""
+    from spa.cli import app
+
+    output_file = tmp_path / "test_output.json"
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["--skip-llm", "--llm-model", "gpt-4o", "--output", str(output_file)]
+    )
+
+    # Should still succeed
+    assert result.exit_code == 0
+    # Should show warning
+    assert "warning" in result.stdout.lower()
+    assert "no effect" in result.stdout.lower()
