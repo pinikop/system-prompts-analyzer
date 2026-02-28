@@ -58,9 +58,9 @@ def _build_prompt(raw_text: str, tool_names: list[str], assistant_name: str) -> 
 Extract thematic and operational information. Focus on:
 
 **Operational Instructions:**
-- permission_rules: When does it ask permission vs. act autonomously? Extract 3-5 specific rules.
+- permission_rules: When does it ask permission vs. act autonomously? Extract 3-5 rules.
 - workflow_approach: What methodology does it follow (TDD, debugging process, planning)?
-- safety_rules: What is it prohibited from doing? What must it always/never do? Extract 3-5 key rules.
+- safety_rules: What is it prohibited from doing? What must it always/never do? 3-5 rules.
 - tool_philosophy: How should it use tools? Any preferences or constraints?
 
 **Thematic Analysis:**
