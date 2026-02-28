@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from spa.llm.analyzer import _build_prompt, _parse_response
+from spa.llm.analyzer import TokenUsage, _build_prompt, _parse_response
 from spa.llm.rankings import compute_rankings
 from spa.llm.schemas import AssistantAnalysis
 
@@ -70,6 +70,37 @@ class TestAssistantAnalysisSchema:
         dumped = analysis.model_dump()
         restored = AssistantAnalysis(**dumped)
         assert restored == analysis
+
+
+class TestTokenUsage:
+    def test_addition(self) -> None:
+        usage1 = TokenUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150)
+        usage2 = TokenUsage(prompt_tokens=200, completion_tokens=75, total_tokens=275)
+        total = usage1 + usage2
+        assert total.prompt_tokens == 300
+        assert total.completion_tokens == 125
+        assert total.total_tokens == 425
+
+    def test_to_dict(self) -> None:
+        usage = TokenUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150)
+        result = usage.to_dict()
+        assert result == {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+
+    def test_from_response_with_usage(self) -> None:
+        mock_response = MagicMock()
+        mock_response.usage = MagicMock(prompt_tokens=100, completion_tokens=50, total_tokens=150)
+        usage = TokenUsage.from_response(mock_response)
+        assert usage.prompt_tokens == 100
+        assert usage.completion_tokens == 50
+        assert usage.total_tokens == 150
+
+    def test_from_response_without_usage(self) -> None:
+        mock_response = MagicMock()
+        mock_response.usage = None
+        usage = TokenUsage.from_response(mock_response)
+        assert usage.prompt_tokens == 0
+        assert usage.completion_tokens == 0
+        assert usage.total_tokens == 0
 
 
 class TestPromptBuilding:
@@ -175,38 +206,102 @@ class TestAnalyzeAssistantIntegration:
     def test_successful_analysis(self) -> None:
         mock_response = MagicMock()
         mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps(VALID_ANALYSIS)))]
+        mock_response.usage = None
 
         with patch("litellm.completion", return_value=mock_response) as mock_completion:
             from spa.llm.analyzer import analyze_assistant
 
-            result = analyze_assistant(
+            analysis, usage = analyze_assistant(
                 raw_text="You are a helpful assistant.",
                 tool_names=["read", "write"],
                 assistant_name="TestBot",
                 model="test-model",
             )
 
-        assert isinstance(result, AssistantAnalysis)
-        assert result.safety_emphasis == "high"
+        assert isinstance(analysis, AssistantAnalysis)
+        assert analysis.safety_emphasis == "high"
+        assert isinstance(usage, dict)
         mock_completion.assert_called_once()
 
     def test_retry_on_validation_failure(self) -> None:
         bad_response = MagicMock()
         bad_response.choices = [MagicMock(message=MagicMock(content='{"invalid": true}'))]
+        bad_response.usage = None
         good_response = MagicMock()
         good_response.choices = [MagicMock(message=MagicMock(content=json.dumps(VALID_ANALYSIS)))]
+        good_response.usage = None
 
         with patch(
             "litellm.completion", side_effect=[bad_response, good_response]
         ) as mock_completion:
             from spa.llm.analyzer import analyze_assistant
 
-            result = analyze_assistant(
+            analysis, usage = analyze_assistant(
                 raw_text="prompt",
                 tool_names=[],
                 assistant_name="TestBot",
                 model="test-model",
             )
 
-        assert isinstance(result, AssistantAnalysis)
+        assert isinstance(analysis, AssistantAnalysis)
+        assert isinstance(usage, dict)
         assert mock_completion.call_count == 2
+
+    def test_returns_token_usage(self) -> None:
+        """analyze_assistant should return token usage from the API response."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps(VALID_ANALYSIS)))]
+        mock_response.usage = MagicMock(
+            prompt_tokens=1500,
+            completion_tokens=250,
+            total_tokens=1750,
+        )
+
+        with patch("litellm.completion", return_value=mock_response):
+            from spa.llm.analyzer import analyze_assistant
+
+            analysis, usage = analyze_assistant(
+                raw_text="You are a helpful assistant.",
+                tool_names=["read", "write"],
+                assistant_name="TestBot",
+                model="test-model",
+            )
+
+        assert isinstance(analysis, AssistantAnalysis)
+        assert usage["prompt_tokens"] == 1500
+        assert usage["completion_tokens"] == 250
+        assert usage["total_tokens"] == 1750
+
+    def test_accumulates_token_usage_on_retry(self) -> None:
+        """Token usage should include both attempts when retrying."""
+        bad_response = MagicMock()
+        bad_response.choices = [MagicMock(message=MagicMock(content='{"invalid": true}'))]
+        bad_response.usage = MagicMock(
+            prompt_tokens=1000,
+            completion_tokens=100,
+            total_tokens=1100,
+        )
+
+        good_response = MagicMock()
+        good_response.choices = [MagicMock(message=MagicMock(content=json.dumps(VALID_ANALYSIS)))]
+        good_response.usage = MagicMock(
+            prompt_tokens=1200,
+            completion_tokens=150,
+            total_tokens=1350,
+        )
+
+        with patch("litellm.completion", side_effect=[bad_response, good_response]):
+            from spa.llm.analyzer import analyze_assistant
+
+            analysis, usage = analyze_assistant(
+                raw_text="prompt",
+                tool_names=[],
+                assistant_name="TestBot",
+                model="test-model",
+            )
+
+        assert isinstance(analysis, AssistantAnalysis)
+        # Should sum tokens from both attempts
+        assert usage["prompt_tokens"] == 2200  # 1000 + 1200
+        assert usage["completion_tokens"] == 250  # 100 + 150
+        assert usage["total_tokens"] == 2450  # 1100 + 1350

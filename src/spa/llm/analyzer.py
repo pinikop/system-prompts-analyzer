@@ -2,10 +2,48 @@
 
 import logging
 import os
+from dataclasses import dataclass
 
 from spa.llm.schemas import AssistantAnalysis
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TokenUsage:
+    """Token usage statistics from LLM API calls."""
+
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+    def to_dict(self) -> dict[str, int]:
+        """Convert to dict for JSON serialization."""
+        return {
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+        }
+
+    @classmethod
+    def from_response(cls, response) -> "TokenUsage":
+        """Extract token usage from litellm response."""
+        if hasattr(response, "usage") and response.usage:
+            return cls(
+                prompt_tokens=response.usage.prompt_tokens,
+                completion_tokens=response.usage.completion_tokens,
+                total_tokens=response.usage.total_tokens,
+            )
+        return cls(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+
+    def __add__(self, other: "TokenUsage") -> "TokenUsage":
+        """Add two TokenUsage objects."""
+        return TokenUsage(
+            prompt_tokens=self.prompt_tokens + other.prompt_tokens,
+            completion_tokens=self.completion_tokens + other.completion_tokens,
+            total_tokens=self.total_tokens + other.total_tokens,
+        )
+
 
 PROMPT_TEMPLATE = """\
 You are analyzing the system prompt of an AI coding assistant called "{assistant_name}".
@@ -67,10 +105,16 @@ def analyze_assistant(
     tool_names: list[str],
     assistant_name: str,
     model: str,
-) -> AssistantAnalysis:
+) -> tuple[AssistantAnalysis, dict[str, int]]:
     """Run LLM analysis on a single coding assistant's system prompt.
 
     Retries once on validation failure with a corrective prompt.
+
+    Returns:
+        Tuple of (analysis, token_usage_dict) where token_usage_dict contains:
+        - prompt_tokens: input tokens used
+        - completion_tokens: output tokens generated
+        - total_tokens: sum of both
     """
     import litellm
 
@@ -90,13 +134,19 @@ def analyze_assistant(
     if base_url:
         kwargs["api_base"] = base_url
 
+    # Track cumulative token usage
+    total_usage = TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+
     # First attempt
     logger.info("Analyzing %s with %s...", assistant_name, model)
     response = litellm.completion(**kwargs)
     content = response.choices[0].message.content
 
+    # Accumulate token usage from first attempt
+    total_usage = total_usage + TokenUsage.from_response(response)
+
     try:
-        return _parse_response(content)
+        return _parse_response(content), total_usage.to_dict()
     except Exception as first_error:
         error_msg = str(first_error)
         logger.warning("First parse failed for %s: %s. Retrying...", assistant_name, error_msg)
@@ -115,4 +165,8 @@ def analyze_assistant(
 
     response = litellm.completion(**kwargs)
     content = response.choices[0].message.content
-    return _parse_response(content)
+
+    # Accumulate token usage from retry
+    total_usage = total_usage + TokenUsage.from_response(response)
+
+    return _parse_response(content), total_usage.to_dict()

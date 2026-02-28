@@ -140,6 +140,7 @@ def run_pipeline(
     # Run LLM analysis on current prompts
     comparisons: list[dict] = []
     llm_model_used = None
+    total_tokens_used = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
     if llm_inputs and not skip_llm:
         from spa.llm.analyzer import analyze_assistant
@@ -149,15 +150,30 @@ def run_pipeline(
         llm_model_used = llm_model
         analyses: dict[str, AssistantAnalysis] = {}
 
+        logger.info("Running LLM analysis on %d prompts...", len(llm_inputs))
+
         for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
             try:
-                analysis = analyze_assistant(
+                analysis, usage = analyze_assistant(
                     raw_text=raw_text,
                     tool_names=tool_names,
                     assistant_name=assistant_name,
                     model=llm_model,
                 )
                 analyses[prompt_key] = analysis
+
+                # Accumulate token usage
+                total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
+                total_tokens_used["completion_tokens"] += usage["completion_tokens"]
+                total_tokens_used["total_tokens"] += usage["total_tokens"]
+
+                logger.info(
+                    "  %s: %d tokens (in: %d, out: %d)",
+                    prompt_key,
+                    usage["total_tokens"],
+                    usage["prompt_tokens"],
+                    usage["completion_tokens"],
+                )
 
                 # Attach to the matching prompt entry
                 assistant_id, label = prompt_key.split("::", 1)
@@ -170,6 +186,12 @@ def run_pipeline(
 
         if analyses:
             comparisons = compute_rankings(analyses, prompts_out)
+            logger.info(
+                "LLM analysis complete. Total tokens: %d (in: %d, out: %d)",
+                total_tokens_used["total_tokens"],
+                total_tokens_used["prompt_tokens"],
+                total_tokens_used["completion_tokens"],
+            )
 
     output = {
         "generated_at": datetime.now(UTC).isoformat(),
@@ -177,6 +199,7 @@ def run_pipeline(
             "llm_model": llm_model_used,
             "assistant_count": len(all_assistants),
             "prompt_count": len(prompts_out),
+            "token_usage": total_tokens_used if llm_model_used else None,
         },
         "prompts": prompts_out,
         "comparisons": comparisons,
