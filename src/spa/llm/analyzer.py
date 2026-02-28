@@ -10,6 +10,18 @@ from spa.llm.schemas import AssistantAnalysis
 logger = logging.getLogger(__name__)
 
 
+class LLMError(Exception):
+    """Base exception for LLM analysis errors."""
+
+
+class AuthenticationError(LLMError):
+    """API key or authentication failed."""
+
+
+class NetworkError(LLMError):
+    """Network/connectivity issue."""
+
+
 @dataclass
 class TokenUsage:
     """Token usage statistics from LLM API calls."""

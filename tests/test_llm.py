@@ -408,3 +408,23 @@ class TestBaseUrlConfiguration:
 
                 call_kwargs = mock_completion.call_args[1]
                 assert call_kwargs["api_base"] == custom_url
+
+
+class TestExceptionTypes:
+    """Test custom exception hierarchy."""
+
+    def test_authentication_error_is_llm_error(self) -> None:
+        """AuthenticationError inherits from LLMError."""
+        from spa.llm.analyzer import AuthenticationError, LLMError
+
+        error = AuthenticationError("Invalid API key")
+        assert isinstance(error, LLMError)
+        assert str(error) == "Invalid API key"
+
+    def test_network_error_is_llm_error(self) -> None:
+        """NetworkError inherits from LLMError."""
+        from spa.llm.analyzer import LLMError, NetworkError
+
+        error = NetworkError("Connection timeout")
+        assert isinstance(error, LLMError)
+        assert str(error) == "Connection timeout"
