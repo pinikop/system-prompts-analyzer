@@ -428,3 +428,67 @@ class TestExceptionTypes:
         error = NetworkError("Connection timeout")
         assert isinstance(error, LLMError)
         assert str(error) == "Connection timeout"
+
+
+class TestErrorCategorization:
+    """Test error categorization from litellm exceptions."""
+
+    def test_api_key_error_raises_authentication_error(self) -> None:
+        """litellm errors about API keys raise AuthenticationError."""
+        from spa.llm.analyzer import AuthenticationError, analyze_assistant
+
+        with patch("litellm.completion") as mock_completion:
+            mock_completion.side_effect = Exception("Invalid API key provided")
+
+            with pytest.raises(AuthenticationError, match="API key invalid or missing"):
+                analyze_assistant(
+                    raw_text="test",
+                    tool_names=[],
+                    assistant_name="TestBot",
+                    model="test-model",
+                )
+
+    def test_unauthorized_error_raises_authentication_error(self) -> None:
+        """litellm unauthorized errors raise AuthenticationError."""
+        from spa.llm.analyzer import AuthenticationError, analyze_assistant
+
+        with patch("litellm.completion") as mock_completion:
+            mock_completion.side_effect = Exception("401 Unauthorized")
+
+            with pytest.raises(AuthenticationError, match="API key invalid or missing"):
+                analyze_assistant(
+                    raw_text="test",
+                    tool_names=[],
+                    assistant_name="TestBot",
+                    model="test-model",
+                )
+
+    def test_timeout_error_raises_network_error(self) -> None:
+        """litellm timeout errors raise NetworkError."""
+        from spa.llm.analyzer import NetworkError, analyze_assistant
+
+        with patch("litellm.completion") as mock_completion:
+            mock_completion.side_effect = Exception("Request timeout")
+
+            with pytest.raises(NetworkError, match="Network error"):
+                analyze_assistant(
+                    raw_text="test",
+                    tool_names=[],
+                    assistant_name="TestBot",
+                    model="test-model",
+                )
+
+    def test_connection_error_raises_network_error(self) -> None:
+        """litellm connection errors raise NetworkError."""
+        from spa.llm.analyzer import NetworkError, analyze_assistant
+
+        with patch("litellm.completion") as mock_completion:
+            mock_completion.side_effect = Exception("Connection refused")
+
+            with pytest.raises(NetworkError, match="Network error"):
+                analyze_assistant(
+                    raw_text="test",
+                    tool_names=[],
+                    assistant_name="TestBot",
+                    model="test-model",
+                )

@@ -152,7 +152,16 @@ def analyze_assistant(
 
     # First attempt
     logger.info("Analyzing %s with %s...", assistant_name, model)
-    response = litellm.completion(**kwargs)
+    try:
+        response = litellm.completion(**kwargs)
+    except Exception as e:
+        error_str = str(e).lower()
+        if "api key" in error_str or "unauthorized" in error_str or "authentication" in error_str:
+            raise AuthenticationError(f"API key invalid or missing: {e}") from e
+        elif "timeout" in error_str or "connection" in error_str or "network" in error_str:
+            raise NetworkError(f"Network error: {e}") from e
+        else:
+            raise  # Re-raise unknown errors
     content = response.choices[0].message.content
 
     # Accumulate token usage from first attempt
@@ -176,7 +185,16 @@ def analyze_assistant(
         }
     )
 
-    response = litellm.completion(**kwargs)
+    try:
+        response = litellm.completion(**kwargs)
+    except Exception as e:
+        error_str = str(e).lower()
+        if "api key" in error_str or "unauthorized" in error_str or "authentication" in error_str:
+            raise AuthenticationError(f"API key invalid or missing: {e}") from e
+        elif "timeout" in error_str or "connection" in error_str or "network" in error_str:
+            raise NetworkError(f"Network error: {e}") from e
+        else:
+            raise  # Re-raise unknown errors
     content = response.choices[0].message.content
 
     # Accumulate token usage from retry
