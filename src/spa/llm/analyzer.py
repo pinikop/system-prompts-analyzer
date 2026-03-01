@@ -2,7 +2,10 @@
 
 import logging
 import os
+import time
 from dataclasses import dataclass
+
+import litellm
 
 from spa.config import DEFAULT_LLM_BASE_URL
 from spa.llm.schemas import AssistantAnalysis
@@ -58,12 +61,19 @@ class TokenUsage:
         )
 
 
+def _classify_llm_error(e: Exception) -> Exception:
+    """Classify an LLM API exception into AuthenticationError, NetworkError, or pass through."""
+    error_str = str(e).lower()
+    if "api key" in error_str or "unauthorized" in error_str or "authentication" in error_str:
+        return AuthenticationError(f"API key invalid or missing: {e}")
+    if "timeout" in error_str or "connection" in error_str or "network" in error_str:
+        return NetworkError(f"Network error: {e}")
+    return e
+
+
 def _build_prompt(raw_text: str, tool_names: list[str], assistant_name: str) -> str:
     """Build LLM prompt for analyzing a coding assistant's system prompt."""
     tools = "\n".join(f"- {t}" for t in tool_names) if tool_names else "No tools defined."
-
-    # Get schema description for field validation
-    schema_desc = AssistantAnalysis.model_json_schema()
 
     return f"""Analyze this system prompt for the coding assistant "{assistant_name}".
 
@@ -72,39 +82,21 @@ Do NOT nest fields under section keys.
 
 Required JSON structure (all fields at top level):
 {{
-  "identity": "string - how the assistant describes itself",
-  "tone": ["array", "of", "3-5", "tone descriptors"],
-  "personality": "string - character traits and approach",
-  "behavioral_rules": ["array", "of", "5-7", "key", "behavioral", "patterns"],
-  "unique_features": ["array", "of", "3-5", "distinctive", "capabilities"],
-  "coding_philosophy": "string - approach to writing code",
-  "safety_emphasis": "paranoid|high|moderate|minimal",
-  "safety_details": "string - what safety measures are emphasized",
-  "autonomy_level": "high|medium|low",
-  "error_handling": "string - how errors are handled",
-  "permission_rules": ["array", "of", "3-5", "permission rules"],
-  "workflow_approach": "string - methodology like TDD, planning, etc",
-  "safety_rules": ["array", "of", "3-5", "prohibited actions"],
-  "tool_philosophy": "string - how to use tools"
+  "identity": "1-2 sentence identity statement",
+  "tone": ["3-5 tone descriptors, e.g. concise, direct, cautious"],
+  "personality": "1-2 sentence personality summary",
+  "behavioral_rules": ["5-10 key behavioral rules extracted from the prompt"],
+  "unique_features": ["3-5 features that distinguish this coding assistant"],
+  "coding_philosophy": "1-2 sentence summary of coding approach",
+  "safety_emphasis": "low|medium|high|very_high",
+  "safety_details": "1-2 sentence description of safety approach",
+  "autonomy_level": "low|medium|high",
+  "error_handling": "1-2 sentence approach to errors",
+  "permission_rules": ["3-5 rules about when it asks permission vs. acts autonomously"],
+  "workflow_approach": "1-2 sentences on methodology (TDD, debugging, planning)",
+  "safety_rules": ["3-5 key safety constraints or prohibited actions"],
+  "tool_philosophy": "1-2 sentences on tool usage preferences and patterns"
 }}
-
-Field descriptions:
-- identity: {schema_desc["properties"]["identity"]["description"]}
-- tone: {schema_desc["properties"]["tone"]["description"]}
-- personality: {schema_desc["properties"]["personality"]["description"]}
-- behavioral_rules: {schema_desc["properties"]["behavioral_rules"]["description"]}
-- unique_features: {schema_desc["properties"]["unique_features"]["description"]}
-- coding_philosophy: {schema_desc["properties"]["coding_philosophy"]["description"]}
-- safety_emphasis: {schema_desc["properties"]["safety_emphasis"]["description"]}
-  Valid values: {", ".join(schema_desc["properties"]["safety_emphasis"]["enum"])}
-- safety_details: {schema_desc["properties"]["safety_details"]["description"]}
-- autonomy_level: {schema_desc["properties"]["autonomy_level"]["description"]}
-  Valid values: {", ".join(schema_desc["properties"]["autonomy_level"]["enum"])}
-- error_handling: {schema_desc["properties"]["error_handling"]["description"]}
-- permission_rules: When does it ask permission vs. act autonomously? Extract 3-5 rules.
-- workflow_approach: What methodology does it follow (TDD, debugging process, planning)?
-- safety_rules: What is it prohibited from doing? What must it always/never do? 3-5 rules.
-- tool_philosophy: How should it use tools? Any preferences or constraints?
 
 **Available tools:**
 {tools}
@@ -131,6 +123,39 @@ def _parse_response(content: str) -> AssistantAnalysis:
     return AssistantAnalysis.model_validate_json(text)
 
 
+_NETWORK_MAX_RETRIES = 3
+_NETWORK_BACKOFF_BASE = 2  # seconds: 1, 2, 4
+
+
+def _llm_completion_with_retries(kwargs: dict) -> tuple:
+    """Call litellm.completion with network retry logic.
+
+    Returns (response, content_text). Raises AuthenticationError immediately,
+    retries NetworkError up to _NETWORK_MAX_RETRIES times with exponential backoff.
+    """
+    last_err: Exception | None = None
+    for attempt in range(_NETWORK_MAX_RETRIES):
+        try:
+            response = litellm.completion(**kwargs)
+            return response, response.choices[0].message.content
+        except Exception as e:
+            classified = _classify_llm_error(e)
+            if isinstance(classified, AuthenticationError):
+                raise classified from e
+            if isinstance(classified, NetworkError):
+                last_err = classified
+                if attempt < _NETWORK_MAX_RETRIES - 1:
+                    delay = _NETWORK_BACKOFF_BASE**attempt
+                    logger.warning(
+                        "Network error (attempt %d/%d): %s", attempt + 1, _NETWORK_MAX_RETRIES, e
+                    )
+                    time.sleep(delay)
+                    continue
+                raise last_err from e
+            raise  # Unknown error, don't retry
+    raise last_err  # Should not reach here, but satisfy type checker
+
+
 def analyze_assistant(
     raw_text: str,
     tool_names: list[str],
@@ -139,16 +164,12 @@ def analyze_assistant(
 ) -> tuple[AssistantAnalysis, dict[str, int]]:
     """Run LLM analysis on a single coding assistant's system prompt.
 
-    Retries once on validation failure with a corrective prompt.
+    Handles network retries (exponential backoff) and validation retries
+    (one corrective prompt on parse failure).
 
     Returns:
-        Tuple of (analysis, token_usage_dict) where token_usage_dict contains:
-        - prompt_tokens: input tokens used
-        - completion_tokens: output tokens generated
-        - total_tokens: sum of both
+        Tuple of (analysis, token_usage_dict).
     """
-    import litellm
-
     api_key = os.environ.get("LLM_API_KEY")
     base_url = os.environ.get("LLM_BASE_URL") or DEFAULT_LLM_BASE_URL
 
@@ -170,26 +191,13 @@ def analyze_assistant(
 
     # First attempt
     logger.debug("Analyzing %s with %s...", assistant_name, model)
-    try:
-        response = litellm.completion(**kwargs)
-    except Exception as e:
-        error_str = str(e).lower()
-        if "api key" in error_str or "unauthorized" in error_str or "authentication" in error_str:
-            raise AuthenticationError(f"API key invalid or missing: {e}") from e
-        elif "timeout" in error_str or "connection" in error_str or "network" in error_str:
-            raise NetworkError(f"Network error: {e}") from e
-        else:
-            raise  # Re-raise unknown errors
-    content = response.choices[0].message.content
-
-    # Accumulate token usage from first attempt
+    response, content = _llm_completion_with_retries(kwargs)
     total_usage = total_usage + TokenUsage.from_response(response)
 
     try:
         return _parse_response(content), total_usage.to_dict()
     except Exception as first_error:
         error_msg = str(first_error)
-        # Log concise error - full details only in debug mode
         logger.warning("First parse failed for %s: validation error. Retrying...", assistant_name)
         logger.debug("Validation error details: %s", error_msg)
 
@@ -205,19 +213,7 @@ def analyze_assistant(
         }
     )
 
-    try:
-        response = litellm.completion(**kwargs)
-    except Exception as e:
-        error_str = str(e).lower()
-        if "api key" in error_str or "unauthorized" in error_str or "authentication" in error_str:
-            raise AuthenticationError(f"API key invalid or missing: {e}") from e
-        elif "timeout" in error_str or "connection" in error_str or "network" in error_str:
-            raise NetworkError(f"Network error: {e}") from e
-        else:
-            raise  # Re-raise unknown errors
-    content = response.choices[0].message.content
-
-    # Accumulate token usage from retry
+    response, content = _llm_completion_with_retries(kwargs)
     total_usage = total_usage + TokenUsage.from_response(response)
 
     return _parse_response(content), total_usage.to_dict()

@@ -3,8 +3,17 @@ let _filters = { assistants: [], models: [] };
 let _listeners = [];
 
 export async function loadData() {
-  const resp = await fetch('data/analysis.json');
-  _data = await resp.json();
+  try {
+    const resp = await fetch('data/analysis.json');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+    _data = await resp.json();
+  } catch (err) {
+    const msg = document.createElement('p');
+    msg.textContent = `Failed to load analysis data: ${err.message}`;
+    msg.style.color = 'var(--pico-del-color, red)';
+    document.querySelector('main')?.prepend(msg);
+    return null;
+  }
   _notify();
   return _data;
 }

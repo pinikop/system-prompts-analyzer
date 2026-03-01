@@ -1,3 +1,4 @@
+import { safetyBadge, autonomyBadge } from '../constants.js';
 import { getData } from '../state.js';
 import { createRadarChart, destroyAll } from '../components/chart.js';
 
@@ -77,15 +78,9 @@ export function renderCompare(app) {
     ];
 
     if (llmA && llmB) {
-      const safetyColors = { low: '#6b7280', medium: '#f59e0b', high: '#f97316', very_high: '#ef4444' };
-      const badge = (val, colors) => {
-        const label = val.replace('_', ' ');
-        return `<span class="category-badge" style="background:${colors[val] || '#6b7280'}">${label}</span>`;
-      };
-      const autonomyColors = { low: '#6b7280', medium: '#3b82f6', high: '#10b981' };
       metrics.push(
-        ['Safety', badge(llmA.safety_emphasis, safetyColors), badge(llmB.safety_emphasis, safetyColors)],
-        ['Autonomy', badge(llmA.autonomy_level, autonomyColors), badge(llmB.autonomy_level, autonomyColors)],
+        ['Safety', safetyBadge(llmA.safety_emphasis), safetyBadge(llmB.safety_emphasis)],
+        ['Autonomy', autonomyBadge(llmA.autonomy_level), autonomyBadge(llmB.autonomy_level)],
         ['Tone', llmA.tone.join(', '), llmB.tone.join(', ')],
       );
     }

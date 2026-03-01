@@ -1,9 +1,13 @@
 """Parser for Amp-style YAML prompt files."""
 
+import logging
+
 import yaml
 
-from spa.parsers.base import ParsedPrompt
+from spa.parsers.base import FormatType, ParsedPrompt
 from spa.parsers.txt_parser import parse_prompt as parse_txt
+
+logger = logging.getLogger(__name__)
 
 
 def parse_yaml_prompt(text: str) -> ParsedPrompt:
@@ -17,13 +21,12 @@ def parse_yaml_prompt(text: str) -> ParsedPrompt:
     """
     try:
         data = yaml.safe_load(text)
-    except yaml.YAMLError:
-        # Malformed YAML (undefined aliases, etc.) - fall back to text parsing
+    except yaml.YAMLError as e:
+        logger.debug("YAML parse failed, falling back to text parsing: %s", e)
         result = parse_txt(text)
-        result.format_type = "yaml"
         return result
     if not isinstance(data, dict):
-        return ParsedPrompt(raw_text=text, format_type="yaml")
+        return ParsedPrompt(raw_text=text, format_type=FormatType.YAML)
 
     # Extract text from system messages
     prompt_parts: list[str] = []
@@ -43,8 +46,8 @@ def parse_yaml_prompt(text: str) -> ParsedPrompt:
 
     extracted = "\n\n".join(prompt_parts)
     if not extracted:
-        return ParsedPrompt(raw_text=text, format_type="yaml")
+        return ParsedPrompt(raw_text=text, format_type=FormatType.YAML)
 
     result = parse_txt(extracted)
-    result.format_type = "yaml"
+    result.format_type = FormatType.YAML
     return result

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from spa.metrics.rule_based import compute_metrics
 from spa.metrics.tool_metrics import compute_tool_metrics
-from spa.parsers.base import ParsedPrompt, PromptSection, ToolDefinition
+from spa.parsers.base import FormatType, ParsedPrompt, PromptSection, ToolDefinition
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
@@ -49,14 +49,12 @@ class TestRuleBasedMetrics:
         assert m["directive_density"] > 0
 
     def test_example_count(self):
-        prompt = ParsedPrompt(
-            raw_text="<example>\nfoo\n</example>\n<example>\nbar\n</example>"
-        )
+        prompt = ParsedPrompt(raw_text="<example>\nfoo\n</example>\n<example>\nbar\n</example>")
         m = compute_metrics(prompt)
         assert m["example_count"] == 2
 
     def test_format_type(self):
-        prompt = ParsedPrompt(raw_text="text", format_type="mixed")
+        prompt = ParsedPrompt(raw_text="text", format_type=FormatType.MIXED)
         m = compute_metrics(prompt)
         assert m["format_type"] == "mixed"
 
@@ -65,6 +63,7 @@ class TestRuleBasedMetrics:
         if not path.exists():
             return
         from spa.parsers.txt_parser import parse_prompt
+
         parsed = parse_prompt(path.read_text())
         m = compute_metrics(parsed)
         assert m["word_count"] > 1000

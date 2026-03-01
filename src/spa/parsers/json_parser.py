@@ -1,8 +1,11 @@
 """Parser for JSON tool definition files."""
 
 import json
+import logging
 
 from spa.parsers.base import ParsedTools, ToolDefinition
+
+logger = logging.getLogger(__name__)
 
 
 def parse_tools_json(text: str) -> ParsedTools:
@@ -12,7 +15,11 @@ def parse_tools_json(text: str) -> ParsedTools:
     - {"tools": [{"name": ..., "description": ..., "input_schema": ...}]}
     - [{"name": ..., "description": ..., ...}]  (bare array)
     """
-    data = json.loads(text)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        logger.warning("Invalid JSON in tool file: %s", e)
+        return ParsedTools()
 
     if isinstance(data, dict):
         tool_list = data.get("tools", [])

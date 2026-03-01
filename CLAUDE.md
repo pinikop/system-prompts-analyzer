@@ -31,7 +31,7 @@ The system has two main parts connected by `analysis.json`:
 - `parsers/` - Parse prompt files (txt/yaml) and tool files (json/txt) into `ParsedPrompt` and `ToolDefinition` dataclasses (`base.py`)
 - `metrics/rule_based.py` - Computes quantitative metrics from parsed prompts (word count, sections, directive density, etc.)
 - `metrics/tool_metrics.py` - Categorizes and counts tools
-- `llm/` - Optional LLM-powered thematic analysis via `litellm`. Requires `LLM_API_KEY` env var (and optionally `LLM_BASE_URL`). Install with `uv sync --extra llm`.
+- `llm/` - LLM-powered thematic analysis via `litellm`. Requires `LLM_API_KEY` env var (and optionally `LLM_BASE_URL`).
 
 **Web dashboard** (`web/`): Static vanilla JS SPA reading `analysis.json`
 
@@ -46,7 +46,7 @@ The system has two main parts connected by `analysis.json`:
 
 - `agents.yaml` - Registry of all coding assistants, their prompt file paths, and tool files
 - `web/data/analysis.json` - Pipeline output consumed by the web UI. This is the contract between pipeline and UI - changes to its schema affect both sides.
-- `src/spa/data_source.py` - File hashing and cache metadata utilities
+- `src/spa/data_source.py` - File hashing utilities for cache change detection
 
 ## Incremental Processing
 

@@ -1,6 +1,18 @@
 """Base dataclasses for parsed prompts and tools."""
 
 from dataclasses import dataclass, field
+from enum import StrEnum
+
+
+class FormatType(StrEnum):
+    """Format of a parsed prompt file."""
+
+    MARKDOWN = "markdown"
+    XML = "xml"
+    MIXED = "mixed"
+    YAML = "yaml"
+    PLAIN = "plain"
+    UNKNOWN = "unknown"
 
 
 @dataclass
@@ -19,7 +31,7 @@ class ParsedPrompt:
 
     raw_text: str
     sections: list[PromptSection] = field(default_factory=list)
-    format_type: str = "unknown"  # "markdown", "xml", "mixed", "yaml", "plain"
+    format_type: FormatType = FormatType.UNKNOWN
 
 
 @dataclass

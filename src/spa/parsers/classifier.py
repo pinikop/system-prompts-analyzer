@@ -1,15 +1,35 @@
 """Classify prompt sections into semantic categories."""
 
+import re
+
 from spa.parsers.base import PromptSection
 
 _CATEGORIES: dict[str, list[str]] = {
     "identity": ["identity", "you are", "your name", "role", "persona", "who you are"],
     "tone": ["tone", "style", "concise", "verbos", "communication", "response format"],
-    "safety": ["safety", "security", "never", "prohibited", "forbidden", "harm",
-               "injection", "malicious", "privacy"],
+    "safety": [
+        "safety",
+        "security",
+        "never",
+        "prohibited",
+        "forbidden",
+        "harm",
+        "injection",
+        "malicious",
+        "privacy",
+    ],
     "tools": ["tool", "function", "command", "parameter", "schema", "input_schema"],
-    "workflow": ["git", "commit", "pull request", "deploy", "ci", "branch", "merge",
-                 "code review", "pr"],
+    "workflow": [
+        "git",
+        "commit",
+        "pull request",
+        "deploy",
+        "ci",
+        "branch",
+        "merge",
+        "code review",
+        "pr",
+    ],
     "examples": ["example", "e.g.", "sample", "demonstration", "here is"],
 }
 
@@ -24,7 +44,7 @@ def classify_section(section: PromptSection) -> str:
     best_score = 0
 
     for category, keywords in _CATEGORIES.items():
-        score = sum(1 for kw in keywords if kw in text)
+        score = sum(1 for kw in keywords if re.search(r"\b" + re.escape(kw) + r"\b", text))
         if score > best_score:
             best_score = score
             best_category = category

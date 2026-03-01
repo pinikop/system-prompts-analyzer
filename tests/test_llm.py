@@ -163,7 +163,7 @@ class TestPromptBuilding:
         prompt = _build_prompt("text", [], "Bot")
         assert "safety_emphasis" in prompt
         assert "autonomy_level" in prompt
-        assert "low, medium, high" in prompt
+        assert "low|medium|high|very_high" in prompt
 
     def test_prompt_includes_operational_instructions(self) -> None:
         """Prompt requests extraction of operational fields."""
@@ -174,7 +174,7 @@ class TestPromptBuilding:
         assert "workflow_approach" in prompt
         assert "safety_rules" in prompt
         assert "tool_philosophy" in prompt
-        assert "When does it ask permission vs. act autonomously" in prompt
+        assert "asks permission vs. acts autonomously" in prompt
 
 
 class TestParseResponse:
@@ -495,9 +495,9 @@ class TestErrorCategorization:
 
 
 def test_pipeline_exits_on_authentication_error(tmp_path, monkeypatch):
-    """Pipeline should exit immediately on authentication error."""
+    """Pipeline should raise PipelineError on authentication error."""
     from spa.llm.analyzer import AuthenticationError
-    from spa.pipeline import run_pipeline
+    from spa.pipeline import PipelineError, run_pipeline
 
     # Create minimal test environment
     monkeypatch.setenv("LLM_API_KEY", "test-key")
@@ -522,10 +522,9 @@ def test_pipeline_exits_on_authentication_error(tmp_path, monkeypatch):
             test_file.write_text("Test prompt")
 
             with patch("spa.pipeline.DATA_DIR", tmp_path / "data"):
-                with pytest.raises(SystemExit) as exc_info:
+                with pytest.raises(PipelineError, match="Authentication failed"):
                     run_pipeline(output_path=tmp_path / "output.json")
 
-                assert exc_info.value.code == 1
                 # Should only call analyze_assistant once (fail fast)
                 assert mock_analyze.call_count == 1
 
@@ -569,37 +568,60 @@ def _fake_analysis():
     return analysis, usage
 
 
-def test_pipeline_retries_on_network_error_and_succeeds(tmp_path, monkeypatch):
-    """Pipeline retries analyze_assistant on NetworkError and stores result on success."""
-    from spa.llm.analyzer import NetworkError
-    from spa.pipeline import run_pipeline
+def test_analyzer_retries_on_network_error_and_succeeds(monkeypatch):
+    """Analyzer retries litellm.completion on network errors and succeeds."""
+    import spa.llm.analyzer as analyzer_mod
 
     monkeypatch.setenv("LLM_API_KEY", "test-key")
 
-    registry, data_dir = _make_registry_and_file(tmp_path)
-    analysis, usage = _fake_analysis()
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = '{"test": true}'
 
-    # Fail twice with NetworkError, succeed on third attempt
-    mock_analyze = MagicMock(
-        side_effect=[NetworkError("timeout"), NetworkError("timeout"), (analysis, usage)]
-    )
+    call_count = 0
+
+    def fake_completion(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise Exception("connection timeout")
+        return mock_response
+
+    mock_litellm = MagicMock()
+    mock_litellm.completion = fake_completion
 
     with (
-        patch("spa.llm.analyzer.analyze_assistant", mock_analyze),
-        patch("spa.pipeline.load_assistant_registry", return_value=registry),
-        patch("spa.pipeline.DATA_DIR", data_dir),
-        patch("time.sleep"),  # skip actual delays
+        patch.dict("sys.modules", {"litellm": mock_litellm}),
+        patch.object(analyzer_mod.time, "sleep"),
     ):
-        result = run_pipeline(output_path=tmp_path / "output.json")
+        response, content = analyzer_mod._llm_completion_with_retries({"model": "test"})
 
-    assert mock_analyze.call_count == 3
-    prompt = result["prompts"][0]
-    assert prompt["llm_analysis"] is not None
-    assert prompt["llm_analysis"]["identity"] == "Test identity."
+    assert call_count == 3
+    assert content == '{"test": true}'
 
 
-def test_pipeline_logs_error_after_retries_exhausted(tmp_path, monkeypatch):
-    """Pipeline logs an error and continues when all 3 network retries fail."""
+def test_analyzer_raises_after_retries_exhausted(monkeypatch):
+    """Analyzer raises NetworkError after all retries fail."""
+    import spa.llm.analyzer as analyzer_mod
+
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+
+    def fake_completion(**kwargs):
+        raise Exception("connection timeout")
+
+    mock_litellm = MagicMock()
+    mock_litellm.completion = fake_completion
+
+    with (
+        patch.dict("sys.modules", {"litellm": mock_litellm}),
+        patch.object(analyzer_mod.time, "sleep"),
+    ):
+        with pytest.raises(analyzer_mod.NetworkError):
+            analyzer_mod._llm_completion_with_retries({"model": "test"})
+
+
+def test_pipeline_continues_on_network_error(tmp_path, monkeypatch):
+    """Pipeline logs error and continues when analyzer raises NetworkError."""
     from spa.llm.analyzer import NetworkError
     from spa.pipeline import run_pipeline
 
@@ -613,9 +635,8 @@ def test_pipeline_logs_error_after_retries_exhausted(tmp_path, monkeypatch):
         patch("spa.llm.analyzer.analyze_assistant", mock_analyze),
         patch("spa.pipeline.load_assistant_registry", return_value=registry),
         patch("spa.pipeline.DATA_DIR", data_dir),
-        patch("time.sleep"),
     ):
         result = run_pipeline(output_path=tmp_path / "output.json")
 
-    assert mock_analyze.call_count == 4  # 1 initial + 3 retries
+    assert mock_analyze.call_count == 1
     assert result["prompts"][0]["llm_analysis"] is None

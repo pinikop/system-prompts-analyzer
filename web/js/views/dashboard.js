@@ -1,3 +1,4 @@
+import { safetyBadge } from '../constants.js';
 import { getFilteredPrompts, getData, subscribe } from '../state.js';
 import { renderFilterBar } from '../components/filter-bar.js';
 import { createBarChart, destroyAll } from '../components/chart.js';
@@ -38,12 +39,7 @@ export function renderDashboard(app) {
       plugins: { legend: { display: false } },
     });
 
-    const safetyBadge = (level) => {
-      if (!level) return '-';
-      const colors = { low: '#6b7280', medium: '#f59e0b', high: '#f97316', very_high: '#ef4444' };
-      const label = level.replace('_', ' ');
-      return `<span class="category-badge" style="background:${colors[level] || '#6b7280'}">${label}</span>`;
-    };
+    // safetyBadge imported from constants.js
     const toneBadges = (tones) => {
       if (!tones) return '-';
       return tones.slice(0, 3).map(t =>

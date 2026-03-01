@@ -1,3 +1,4 @@
+import { SAFETY_COLORS, AUTONOMY_COLORS, DEFAULT_BADGE_COLOR } from '../constants.js';
 import { getData, getAllPromptsForAssistant } from '../state.js';
 import { createRadarChart, destroyAll } from '../components/chart.js';
 
@@ -31,8 +32,6 @@ function sectionBadges(m) {
   ).join(' ');
 }
 
-const SAFETY_COLORS = { low: '#6b7280', medium: '#f59e0b', high: '#f97316', very_high: '#ef4444' };
-const AUTONOMY_COLORS = { low: '#6b7280', medium: '#3b82f6', high: '#10b981' };
 
 function llmAnalysisPanel(analysis) {
   if (!analysis) return '';

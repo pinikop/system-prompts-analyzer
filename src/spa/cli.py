@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 
 from spa.config import DEFAULT_LLM_MODEL, WEB_DATA_DIR
-from spa.pipeline import run_pipeline
+from spa.pipeline import PipelineError, run_pipeline
 
 app = typer.Typer(
     name="spa",
@@ -87,17 +87,13 @@ def main(
 
     # Warn about ineffective flag combinations
     if skip_llm and llm_model != DEFAULT_LLM_MODEL:
-        console.print(
-            "[yellow]Warning: --llm-model has no effect when --skip-llm is set[/yellow]"
-        )
+        console.print("[yellow]Warning: --llm-model has no effect when --skip-llm is set[/yellow]")
 
     # Validate output path
     if output is not None:
         parent_dir = output.parent
         if not parent_dir.exists():
-            console.print(
-                f"[red]Error: Output directory does not exist: {parent_dir}[/red]"
-            )
+            console.print(f"[red]Error: Output directory does not exist: {parent_dir}[/red]")
             console.print("Create the directory first or use a valid path.")
             raise typer.Exit(1)
 
@@ -125,21 +121,23 @@ def main(
     output_path = output if output is not None else WEB_DATA_DIR / "analysis.json"
 
     # Run the pipeline
-    result = run_pipeline(
-        output_path=output_path,
-        skip_llm=skip_llm,
-        llm_model=llm_model,
-        previous_analysis_path=output_path if not force else None,
-        force=force,
-        skip_update=skip_update,
-    )
+    try:
+        result = run_pipeline(
+            output_path=output_path,
+            skip_llm=skip_llm,
+            llm_model=llm_model,
+            previous_analysis_path=output_path if not force else None,
+            force=force,
+            skip_update=skip_update,
+        )
+    except PipelineError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
 
     # Report results
     count = result["meta"]["prompt_count"]
     assistants = result["meta"]["assistant_count"]
-    llm_status = (
-        f" (LLM: {result['meta']['llm_model']})" if result["meta"]["llm_model"] else ""
-    )
+    llm_status = f" (LLM: {result['meta']['llm_model']})" if result["meta"]["llm_model"] else ""
 
     if not quiet:
         console.print(

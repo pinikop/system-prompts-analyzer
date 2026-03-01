@@ -3,8 +3,7 @@
 import json
 import logging
 import os
-import sys
-import time
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -21,6 +20,24 @@ from spa.parsers.txt_parser import extract_inline_tools, parse_prompt, parse_too
 from spa.parsers.yaml_parser import parse_yaml_prompt
 
 logger = logging.getLogger(__name__)
+
+
+class PipelineError(Exception):
+    """Fatal pipeline error (missing credentials, etc.)."""
+
+
+@dataclass
+class _PromptResult:
+    """Result of processing a single prompt through LLM analysis."""
+
+    prompt_key: str
+    analysis: object | None = None
+    analysis_dict: dict | None = None
+    token_usage: dict = field(
+        default_factory=lambda: {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    )
+    cached: bool = False
+    error: str | None = None
 
 
 def _parse_prompt_file(path: Path, fmt: str) -> tuple:
@@ -56,6 +73,66 @@ def _merge_tools(
     return list(seen.values())
 
 
+def _process_prompt(
+    prompt_key: str,
+    raw_text: str,
+    tool_names: list[str],
+    assistant_name: str,
+    llm_model: str,
+    path_str: str | None,
+    file_hashes: dict[str, str],
+    previous_file_hashes: dict[str, str],
+    previous_prompts: dict[str, dict],
+) -> _PromptResult:
+    """Analyze one prompt: check cache or call LLM. Returns results without side effects."""
+    from spa.llm.analyzer import AuthenticationError, analyze_assistant
+    from spa.llm.schemas import AssistantAnalysis
+
+    # Check cache: reuse previous LLM analysis if file is unchanged
+    if path_str and previous_prompts:
+        current_hash = file_hashes.get(path_str)
+        cached_hash = previous_file_hashes.get(path_str)
+        if current_hash == cached_hash and prompt_key in previous_prompts:
+            cached_llm = previous_prompts[prompt_key].get("llm_analysis")
+            if cached_llm:
+                logger.debug("  %s: using cached LLM analysis", prompt_key)
+                return _PromptResult(
+                    prompt_key=prompt_key,
+                    analysis=AssistantAnalysis(**cached_llm),
+                    analysis_dict=cached_llm,
+                    cached=True,
+                )
+
+    try:
+        analysis, usage = analyze_assistant(
+            raw_text=raw_text,
+            tool_names=tool_names,
+            assistant_name=assistant_name,
+            model=llm_model,
+        )
+    except AuthenticationError as e:
+        raise PipelineError(f"Authentication failed: {e}\nCheck your LLM_API_KEY.") from e
+    except Exception as e:
+        error_type = type(e).__name__
+        logger.error("LLM analysis failed for %s: %s", prompt_key, error_type)
+        logger.debug("Full error: %s", e, exc_info=True)
+        return _PromptResult(prompt_key=prompt_key, error=error_type)
+
+    logger.debug(
+        "  %s: %d tokens (in: %d, out: %d)",
+        prompt_key,
+        usage["total_tokens"],
+        usage["prompt_tokens"],
+        usage["completion_tokens"],
+    )
+    return _PromptResult(
+        prompt_key=prompt_key,
+        analysis=analysis,
+        analysis_dict=analysis.model_dump(),
+        token_usage=usage,
+    )
+
+
 def run_pipeline(
     *,
     output_path: Path | None = None,
@@ -74,12 +151,10 @@ def run_pipeline(
 
     # Validate LLM credentials early
     if not skip_llm and not os.environ.get("LLM_API_KEY"):
-        print(
-            "Error: LLM_API_KEY environment variable is required for LLM analysis.\n"
-            "Set it in .env or pass --skip-llm to run without LLM analysis.",
-            file=sys.stderr,
+        raise PipelineError(
+            "LLM_API_KEY environment variable is required for LLM analysis.\n"
+            "Set it in .env or pass --skip-llm to run without LLM analysis."
         )
-        sys.exit(1)
 
     # Load previous analysis for incremental cache lookup
     previous_file_hashes: dict[str, str] = {}
@@ -102,6 +177,14 @@ def run_pipeline(
     llm_inputs: dict[str, tuple[str, list[str], str]] = {}
     # Track prompt file paths for cache hash comparison
     prompt_paths: dict[str, str] = {}
+
+    # Compute file hashes once for all prompt files
+    file_hashes: dict[str, str] = {}
+    for assistant in registry.values():
+        for prompt_entry in assistant.get("prompts", []):
+            prompt_path = DATA_DIR / prompt_entry["path"]
+            if prompt_path.exists():
+                file_hashes[prompt_entry["path"]] = compute_file_hash(prompt_path)
 
     for assistant_id, assistant in registry.items():
         assistant_name = assistant["name"]
@@ -164,7 +247,6 @@ def run_pipeline(
     total_tokens_used = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
     if llm_inputs and not skip_llm:
-        from spa.llm.analyzer import AuthenticationError, NetworkError, analyze_assistant
         from spa.llm.rankings import compute_rankings
         from spa.llm.schemas import AssistantAnalysis
 
@@ -173,104 +255,44 @@ def run_pipeline(
 
         logger.info("Running LLM analysis on %d prompts...", len(llm_inputs))
 
-        def _process_prompt(
-            prompt_key: str,
-            raw_text: str,
-            tool_names: list[str],
-            assistant_name: str,
-            on_update=None,
-        ) -> None:
-            """Analyze one prompt: check cache, call LLM, attach results.
-
-            on_update: optional callable(**kwargs) forwarded to progress.update().
-            """
+        def _run_and_apply(prompt_key, raw_text, tool_names, assistant_name, on_update=None):
+            """Run _process_prompt and apply results to shared state."""
             if on_update:
-                on_update(status="⠿", name=prompt_key, suffix=" ...")
+                on_update(status="\u2807", name=prompt_key, suffix=" ...")
 
-            # Check cache: reuse previous LLM analysis if file is unchanged
-            path_str = prompt_paths.get(prompt_key)
-            if path_str and previous_prompts:
-                current_hash = compute_file_hash(DATA_DIR / path_str)
-                cached_hash = previous_file_hashes.get(path_str)
-                if current_hash == cached_hash and prompt_key in previous_prompts:
-                    cached_llm = previous_prompts[prompt_key].get("llm_analysis")
-                    if cached_llm:
-                        logger.debug("  %s: using cached LLM analysis", prompt_key)
-                        analyses[prompt_key] = AssistantAnalysis(**cached_llm)
-                        aid, label = prompt_key.split("::", 1)
-                        for entry in prompts_out:
-                            if entry["assistant_id"] == aid and entry["label"] == label:
-                                entry["llm_analysis"] = cached_llm
-                                break
-                        if on_update:
-                            on_update(advance=1, status="✓", name=prompt_key, suffix=" (cached)")
-                        return
+            result = _process_prompt(
+                prompt_key=prompt_key,
+                raw_text=raw_text,
+                tool_names=tool_names,
+                assistant_name=assistant_name,
+                llm_model=llm_model,
+                path_str=prompt_paths.get(prompt_key),
+                file_hashes=file_hashes,
+                previous_file_hashes=previous_file_hashes,
+                previous_prompts=previous_prompts,
+            )
 
-            def _call() -> tuple:
-                return analyze_assistant(
-                    raw_text=raw_text,
-                    tool_names=tool_names,
-                    assistant_name=assistant_name,
-                    model=llm_model,
-                )
-
-            def _store(analysis, usage) -> None:
-                analyses[prompt_key] = analysis
-                total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
-                total_tokens_used["completion_tokens"] += usage["completion_tokens"]
-                total_tokens_used["total_tokens"] += usage["total_tokens"]
-                logger.debug(
-                    "  %s: %d tokens (in: %d, out: %d)",
-                    prompt_key,
-                    usage["total_tokens"],
-                    usage["prompt_tokens"],
-                    usage["completion_tokens"],
-                )
+            if result.analysis is not None:
+                analyses[prompt_key] = result.analysis
                 aid, label = prompt_key.split("::", 1)
                 for entry in prompts_out:
                     if entry["assistant_id"] == aid and entry["label"] == label:
-                        entry["llm_analysis"] = analysis.model_dump()
+                        entry["llm_analysis"] = result.analysis_dict
                         break
 
-            try:
-                _store(*_call())
-                if on_update:
-                    on_update(advance=1, status="✓", name=prompt_key, suffix="")
-            except AuthenticationError as e:
-                logger.error("Authentication failed: %s", e)
-                logger.error("Stopping pipeline - check your LLM_API_KEY")
-                sys.exit(1)
-            except NetworkError as network_err:
-                # Retry with exponential backoff (3 attempts)
-                last_err = network_err
-                retry_success = False
-                for attempt in range(3):
-                    logger.warning("Network error (attempt %d/3): %s", attempt + 1, last_err)
-                    time.sleep(2**attempt)  # 1s, 2s, 4s
-                    try:
-                        _store(*_call())
-                        retry_success = True
-                        break
-                    except NetworkError as retry_e:
-                        last_err = retry_e
-                        if attempt == 2:  # Last attempt
-                            logger.error("Network error after 3 retries: %s", last_err)
-                            if on_update:
-                                on_update(
-                                    advance=1, status="✗", name=prompt_key, suffix=" - network"
-                                )
-                    except AuthenticationError as auth_e:
-                        logger.error("Authentication failed: %s", auth_e)
-                        logger.error("Stopping pipeline - check your LLM_API_KEY")
-                        sys.exit(1)
-                if retry_success and on_update:
-                    on_update(advance=1, status="✓", name=prompt_key, suffix="")
-            except Exception as e:
-                error_type = type(e).__name__
-                logger.error("LLM analysis failed for %s: %s", prompt_key, error_type)
-                logger.debug("Full error: %s", e, exc_info=True)
-                if on_update:
-                    on_update(advance=1, status="✗", name=prompt_key, suffix=f" - {error_type}")
+            if not result.cached:
+                total_tokens_used["prompt_tokens"] += result.token_usage["prompt_tokens"]
+                total_tokens_used["completion_tokens"] += result.token_usage["completion_tokens"]
+                total_tokens_used["total_tokens"] += result.token_usage["total_tokens"]
+
+            if on_update:
+                if result.error:
+                    suffix = f" - {result.error}"
+                    on_update(advance=1, status="\u2717", name=prompt_key, suffix=suffix)
+                elif result.cached:
+                    on_update(advance=1, status="\u2713", name=prompt_key, suffix=" (cached)")
+                else:
+                    on_update(advance=1, status="\u2713", name=prompt_key, suffix="")
 
         # Determine if we should show progress (not in quiet mode)
         show_progress = logger.getEffectiveLevel() < logging.WARNING
@@ -299,10 +321,10 @@ def run_pipeline(
                     progress.update(task, **kwargs)
 
                 for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
-                    _process_prompt(prompt_key, raw_text, tool_names, assistant_name, on_update)
+                    _run_and_apply(prompt_key, raw_text, tool_names, assistant_name, on_update)
         else:
             for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
-                _process_prompt(prompt_key, raw_text, tool_names, assistant_name)
+                _run_and_apply(prompt_key, raw_text, tool_names, assistant_name)
 
         if analyses:
             comparisons = compute_rankings(analyses, prompts_out)
@@ -312,14 +334,6 @@ def run_pipeline(
                 total_tokens_used["prompt_tokens"],
                 total_tokens_used["completion_tokens"],
             )
-
-    # Compute file hashes for all processed prompt files
-    file_hashes: dict[str, str] = {}
-    for assistant in registry.values():
-        for prompt_entry in assistant.get("prompts", []):
-            prompt_path = DATA_DIR / prompt_entry["path"]
-            if prompt_path.exists():
-                file_hashes[prompt_entry["path"]] = compute_file_hash(prompt_path)
 
     output = {
         "generated_at": datetime.now(UTC).isoformat(),

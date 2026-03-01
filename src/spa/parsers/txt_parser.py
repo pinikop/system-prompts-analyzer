@@ -3,7 +3,7 @@
 import json
 import re
 
-from spa.parsers.base import ParsedPrompt, ParsedTools, PromptSection, ToolDefinition
+from spa.parsers.base import FormatType, ParsedPrompt, ParsedTools, PromptSection, ToolDefinition
 
 # Match XML-style tags like <tool_description>, <critical_security_rules>, etc.
 _XML_TAG_RE = re.compile(
@@ -58,22 +58,24 @@ def parse_prompt(text: str) -> ParsedPrompt:
             end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
             content = text[start:end].strip()
             if content:
-                sections.append(PromptSection(
-                    name=title,
-                    content=content,
-                    level=level,
-                    source="markdown",
-                ))
+                sections.append(
+                    PromptSection(
+                        name=title,
+                        content=content,
+                        level=level,
+                        source="markdown",
+                    )
+                )
 
     # Determine format type
     if has_xml and has_markdown:
-        fmt = "mixed"
+        fmt = FormatType.MIXED
     elif has_xml:
-        fmt = "xml"
+        fmt = FormatType.XML
     elif has_markdown:
-        fmt = "markdown"
+        fmt = FormatType.MARKDOWN
     else:
-        fmt = "plain"
+        fmt = FormatType.PLAIN
 
     return ParsedPrompt(raw_text=text, sections=sections, format_type=fmt)
 
@@ -145,7 +147,7 @@ def _extract_claude_code_tools(text: str) -> list[ToolDefinition]:
         sep = _CC_SEP_RE.search(text, section_start)
         if not sep:
             continue
-        section = text[section_start:sep.start()]
+        section = text[section_start : sep.start()]
         # Find the last top-level JSON object in this section (the schema).
         # Scan forward, bracket-match each '{', keep the last valid parse.
         params: dict = {}
@@ -172,9 +174,14 @@ def _extract_claude_code_tools(text: str) -> list[ToolDefinition]:
         if schema_start == -1:
             continue
         desc = section[:schema_start].strip()
-        tools.append(ToolDefinition(
-            name=name, description=desc, parameters=params, source="inline",
-        ))
+        tools.append(
+            ToolDefinition(
+                name=name,
+                description=desc,
+                parameters=params,
+                source="inline",
+            )
+        )
     return tools
 
 
@@ -211,7 +218,7 @@ def _extract_openai_function_tools(text: str) -> list[ToolDefinition]:
 
         # Try array first if it comes before a brace
         if next_bracket != -1 and (next_brace == -1 or next_bracket <= next_brace):
-            peek = text[next_bracket:next_bracket + 200]
+            peek = text[next_bracket : next_bracket + 200]
             if '"name"' in peek and '"description"' in peek:
                 end = _bracket_match(text, next_bracket, "[", "]")
                 if end != -1:
@@ -233,7 +240,7 @@ def _extract_openai_function_tools(text: str) -> list[ToolDefinition]:
             continue
 
         # Try individual object (Cursor concatenated format)
-        peek = text[next_brace:next_brace + 200]
+        peek = text[next_brace : next_brace + 200]
         if '"name"' in peek and '"description"' in peek:
             end = _bracket_match(text, next_brace, "{", "}")
             if end != -1:
@@ -274,11 +281,13 @@ def extract_inline_tools(text: str) -> list[ToolDefinition]:
     for tool in parse_tools_txt(text).tools:
         if tool.name not in seen:
             seen.add(tool.name)
-            tools.append(ToolDefinition(
-                name=tool.name,
-                description=tool.description,
-                parameters=tool.parameters,
-                source="inline",
-            ))
+            tools.append(
+                ToolDefinition(
+                    name=tool.name,
+                    description=tool.description,
+                    parameters=tool.parameters,
+                    source="inline",
+                )
+            )
 
     return tools

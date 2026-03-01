@@ -2,9 +2,6 @@
 
 from spa.llm.schemas import AssistantAnalysis
 
-SAFETY_ORDER = {"low": 0, "medium": 1, "high": 2, "very_high": 3}
-AUTONOMY_ORDER = {"low": 0, "medium": 1, "high": 2}
-
 
 def compute_rankings(
     analyses: dict[str, AssistantAnalysis],
