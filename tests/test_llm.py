@@ -492,3 +492,39 @@ class TestErrorCategorization:
                     assistant_name="TestBot",
                     model="test-model",
                 )
+
+
+def test_pipeline_exits_on_authentication_error(tmp_path, monkeypatch):
+    """Pipeline should exit immediately on authentication error."""
+    from spa.llm.analyzer import AuthenticationError
+    from spa.pipeline import run_pipeline
+
+    # Create minimal test environment
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+
+    # Mock analyze_assistant to raise AuthenticationError
+    with patch("spa.llm.analyzer.analyze_assistant") as mock_analyze:
+        mock_analyze.side_effect = AuthenticationError("Invalid API key")
+
+        # Mock load_assistant_registry to return minimal data
+        with patch("spa.pipeline.load_assistant_registry") as mock_registry:
+            mock_registry.return_value = {
+                "test-assistant": {
+                    "name": "Test",
+                    "prompts": [{"label": "v1", "path": "test.txt", "current": True}],
+                    "tools": [],
+                }
+            }
+
+            # Create a dummy prompt file
+            test_file = tmp_path / "data" / "test.txt"
+            test_file.parent.mkdir(parents=True)
+            test_file.write_text("Test prompt")
+
+            with patch("spa.pipeline.DATA_DIR", tmp_path / "data"):
+                with pytest.raises(SystemExit) as exc_info:
+                    run_pipeline(output_path=tmp_path / "output.json")
+
+                assert exc_info.value.code == 1
+                # Should only call analyze_assistant once (fail fast)
+                assert mock_analyze.call_count == 1

@@ -164,7 +164,7 @@ def run_pipeline(
     total_tokens_used = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
     if llm_inputs and not skip_llm:
-        from spa.llm.analyzer import analyze_assistant
+        from spa.llm.analyzer import AuthenticationError, NetworkError, analyze_assistant
         from spa.llm.rankings import compute_rankings
         from spa.llm.schemas import AssistantAnalysis
 
@@ -234,6 +234,54 @@ def run_pipeline(
                                 break
 
                         progress.update(task, advance=1, description=f"✓ {prompt_key}")
+                    except AuthenticationError as e:
+                        logger.error("Authentication failed: %s", e)
+                        logger.error("Stopping pipeline - check your LLM_API_KEY")
+                        sys.exit(1)  # Fail fast
+                    except NetworkError as e:
+                        # Retry with exponential backoff (3 attempts)
+                        retry_success = False
+                        for attempt in range(3):
+                            logger.warning("Network error (attempt %d/3): %s", attempt + 1, e)
+                            time.sleep(2**attempt)  # 1s, 2s, 4s
+                            try:
+                                analysis, usage = analyze_assistant(
+                                    raw_text=raw_text,
+                                    tool_names=tool_names,
+                                    assistant_name=assistant_name,
+                                    model=llm_model,
+                                )
+                                analyses[prompt_key] = analysis
+                                total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
+                                total_tokens_used["completion_tokens"] += usage["completion_tokens"]
+                                total_tokens_used["total_tokens"] += usage["total_tokens"]
+                                logger.debug(
+                                    "  %s: %d tokens (in: %d, out: %d)",
+                                    prompt_key,
+                                    usage["total_tokens"],
+                                    usage["prompt_tokens"],
+                                    usage["completion_tokens"],
+                                )
+                                assistant_id, label = prompt_key.split("::", 1)
+                                for entry in prompts_out:
+                                    if entry["assistant_id"] == assistant_id and entry["label"] == label:
+                                        entry["llm_analysis"] = analysis.model_dump()
+                                        break
+                                retry_success = True
+                                break  # Success
+                            except NetworkError as retry_e:
+                                e = retry_e
+                                if attempt == 2:  # Last attempt
+                                    logger.error("Network error after 3 retries: %s", e)
+                                    progress.update(task, advance=1, description=f"✗ {prompt_key} - network error")
+                            except AuthenticationError as auth_e:
+                                # Auth error during retry - fail fast
+                                logger.error("Authentication failed: %s", auth_e)
+                                logger.error("Stopping pipeline - check your LLM_API_KEY")
+                                sys.exit(1)
+
+                        if retry_success:
+                            progress.update(task, advance=1, description=f"✓ {prompt_key}")
                     except Exception as e:
                         logger.exception("LLM analysis failed for %s", prompt_key)
                         progress.update(task, advance=1, description=f"✗ {prompt_key} - {str(e)[:50]}")
@@ -285,6 +333,50 @@ def run_pipeline(
                         if entry["assistant_id"] == assistant_id and entry["label"] == label:
                             entry["llm_analysis"] = analysis.model_dump()
                             break
+                except AuthenticationError as e:
+                    logger.error("Authentication failed: %s", e)
+                    logger.error("Stopping pipeline - check your LLM_API_KEY")
+                    sys.exit(1)  # Fail fast
+                except NetworkError as e:
+                    # Retry with exponential backoff (3 attempts)
+                    retry_success = False
+                    for attempt in range(3):
+                        logger.warning("Network error (attempt %d/3): %s", attempt + 1, e)
+                        time.sleep(2**attempt)  # 1s, 2s, 4s
+                        try:
+                            analysis, usage = analyze_assistant(
+                                raw_text=raw_text,
+                                tool_names=tool_names,
+                                assistant_name=assistant_name,
+                                model=llm_model,
+                            )
+                            analyses[prompt_key] = analysis
+                            total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
+                            total_tokens_used["completion_tokens"] += usage["completion_tokens"]
+                            total_tokens_used["total_tokens"] += usage["total_tokens"]
+                            logger.debug(
+                                "  %s: %d tokens (in: %d, out: %d)",
+                                prompt_key,
+                                usage["total_tokens"],
+                                usage["prompt_tokens"],
+                                usage["completion_tokens"],
+                            )
+                            assistant_id, label = prompt_key.split("::", 1)
+                            for entry in prompts_out:
+                                if entry["assistant_id"] == assistant_id and entry["label"] == label:
+                                    entry["llm_analysis"] = analysis.model_dump()
+                                    break
+                            retry_success = True
+                            break  # Success
+                        except NetworkError as retry_e:
+                            e = retry_e
+                            if attempt == 2:  # Last attempt
+                                logger.error("Network error after 3 retries: %s", e)
+                        except AuthenticationError as auth_e:
+                            # Auth error during retry - fail fast
+                            logger.error("Authentication failed: %s", auth_e)
+                            logger.error("Stopping pipeline - check your LLM_API_KEY")
+                            sys.exit(1)
                 except Exception:
                     logger.exception("LLM analysis failed for %s", prompt_key)
 
