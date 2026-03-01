@@ -18,6 +18,10 @@ FAKE_LLM_ANALYSIS = {
     "safety_details": "Avoids harmful actions.",
     "autonomy_level": "medium",
     "error_handling": "Reports errors clearly.",
+    "permission_rules": ["rule1", "rule2", "rule3"],
+    "workflow_approach": "Test-driven development.",
+    "safety_rules": ["rule1", "rule2", "rule3"],
+    "tool_philosophy": "Use tools efficiently.",
 }
 
 
