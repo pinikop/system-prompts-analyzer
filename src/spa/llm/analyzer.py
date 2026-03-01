@@ -67,15 +67,28 @@ def _build_prompt(raw_text: str, tool_names: list[str], assistant_name: str) -> 
 
     return f"""Analyze this system prompt for the coding assistant "{assistant_name}".
 
-Extract ALL fields below. Both operational and thematic sections are required.
+Return a FLAT JSON object with ALL 14 fields at the top level.
+Do NOT nest fields under section keys.
 
-**Operational Instructions:**
-- permission_rules: When does it ask permission vs. act autonomously? Extract 3-5 rules.
-- workflow_approach: What methodology does it follow (TDD, debugging process, planning)?
-- safety_rules: What is it prohibited from doing? What must it always/never do? 3-5 rules.
-- tool_philosophy: How should it use tools? Any preferences or constraints?
+Required JSON structure (all fields at top level):
+{{
+  "identity": "string - how the assistant describes itself",
+  "tone": ["array", "of", "3-5", "tone descriptors"],
+  "personality": "string - character traits and approach",
+  "behavioral_rules": ["array", "of", "5-7", "key", "behavioral", "patterns"],
+  "unique_features": ["array", "of", "3-5", "distinctive", "capabilities"],
+  "coding_philosophy": "string - approach to writing code",
+  "safety_emphasis": "paranoid|high|moderate|minimal",
+  "safety_details": "string - what safety measures are emphasized",
+  "autonomy_level": "high|medium|low",
+  "error_handling": "string - how errors are handled",
+  "permission_rules": ["array", "of", "3-5", "permission rules"],
+  "workflow_approach": "string - methodology like TDD, planning, etc",
+  "safety_rules": ["array", "of", "3-5", "prohibited actions"],
+  "tool_philosophy": "string - how to use tools"
+}}
 
-**Thematic Analysis:**
+Field descriptions:
 - identity: {schema_desc["properties"]["identity"]["description"]}
 - tone: {schema_desc["properties"]["tone"]["description"]}
 - personality: {schema_desc["properties"]["personality"]["description"]}
@@ -83,11 +96,15 @@ Extract ALL fields below. Both operational and thematic sections are required.
 - unique_features: {schema_desc["properties"]["unique_features"]["description"]}
 - coding_philosophy: {schema_desc["properties"]["coding_philosophy"]["description"]}
 - safety_emphasis: {schema_desc["properties"]["safety_emphasis"]["description"]}
-  Options: {", ".join(schema_desc["properties"]["safety_emphasis"]["enum"])}
+  Valid values: {", ".join(schema_desc["properties"]["safety_emphasis"]["enum"])}
 - safety_details: {schema_desc["properties"]["safety_details"]["description"]}
 - autonomy_level: {schema_desc["properties"]["autonomy_level"]["description"]}
-  Options: {", ".join(schema_desc["properties"]["autonomy_level"]["enum"])}
+  Valid values: {", ".join(schema_desc["properties"]["autonomy_level"]["enum"])}
 - error_handling: {schema_desc["properties"]["error_handling"]["description"]}
+- permission_rules: When does it ask permission vs. act autonomously? Extract 3-5 rules.
+- workflow_approach: What methodology does it follow (TDD, debugging process, planning)?
+- safety_rules: What is it prohibited from doing? What must it always/never do? 3-5 rules.
+- tool_philosophy: How should it use tools? Any preferences or constraints?
 
 **Available tools:**
 {tools}
@@ -95,8 +112,9 @@ Extract ALL fields below. Both operational and thematic sections are required.
 **System prompt to analyze:**
 {raw_text}
 
-Return valid JSON matching the AssistantAnalysis schema.
-IMPORTANT: Include ALL fields from both Operational Instructions and Thematic Analysis sections.
+CRITICAL: Return ONLY a single flat JSON object.
+All 14 fields must be at the top level, not nested under
+"operational" or "thematic" keys.
 """
 
 
@@ -151,7 +169,7 @@ def analyze_assistant(
     total_usage = TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
 
     # First attempt
-    logger.info("Analyzing %s with %s...", assistant_name, model)
+    logger.debug("Analyzing %s with %s...", assistant_name, model)
     try:
         response = litellm.completion(**kwargs)
     except Exception as e:
@@ -171,7 +189,9 @@ def analyze_assistant(
         return _parse_response(content), total_usage.to_dict()
     except Exception as first_error:
         error_msg = str(first_error)
-        logger.warning("First parse failed for %s: %s. Retrying...", assistant_name, error_msg)
+        # Log concise error - full details only in debug mode
+        logger.warning("First parse failed for %s: validation error. Retrying...", assistant_name)
+        logger.debug("Validation error details: %s", error_msg)
 
     # Retry with corrective prompt
     kwargs["messages"].append({"role": "assistant", "content": content})

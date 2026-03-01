@@ -198,10 +198,15 @@ def run_pipeline(
                                 analyses[prompt_key] = AssistantAnalysis(**cached_llm)
                                 assistant_id, label = prompt_key.split("::", 1)
                                 for entry in prompts_out:
-                                    if entry["assistant_id"] == assistant_id and entry["label"] == label:
+                                    if (
+                                        entry["assistant_id"] == assistant_id
+                                        and entry["label"] == label
+                                    ):
                                         entry["llm_analysis"] = cached_llm
                                         break
-                                progress.update(task, advance=1, description=f"✓ {prompt_key} (cached)")
+                                progress.update(
+                                    task, advance=1, description=f"✓ {prompt_key} (cached)"
+                                )
                                 continue
 
                     try:
@@ -253,7 +258,9 @@ def run_pipeline(
                                 )
                                 analyses[prompt_key] = analysis
                                 total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
-                                total_tokens_used["completion_tokens"] += usage["completion_tokens"]
+                                total_tokens_used["completion_tokens"] += usage[
+                                    "completion_tokens"
+                                ]
                                 total_tokens_used["total_tokens"] += usage["total_tokens"]
                                 logger.debug(
                                     "  %s: %d tokens (in: %d, out: %d)",
@@ -264,7 +271,10 @@ def run_pipeline(
                                 )
                                 assistant_id, label = prompt_key.split("::", 1)
                                 for entry in prompts_out:
-                                    if entry["assistant_id"] == assistant_id and entry["label"] == label:
+                                    if (
+                                        entry["assistant_id"] == assistant_id
+                                        and entry["label"] == label
+                                    ):
                                         entry["llm_analysis"] = analysis.model_dump()
                                         break
                                 retry_success = True
@@ -273,7 +283,11 @@ def run_pipeline(
                                 e = retry_e
                                 if attempt == 2:  # Last attempt
                                     logger.error("Network error after 3 retries: %s", e)
-                                    progress.update(task, advance=1, description=f"✗ {prompt_key} - network error")
+                                    progress.update(
+                                        task,
+                                        advance=1,
+                                        description=f"✗ {prompt_key} - network error",
+                                    )
                             except AuthenticationError as auth_e:
                                 # Auth error during retry - fail fast
                                 logger.error("Authentication failed: %s", auth_e)
@@ -283,8 +297,12 @@ def run_pipeline(
                         if retry_success:
                             progress.update(task, advance=1, description=f"✓ {prompt_key}")
                     except Exception as e:
-                        logger.exception("LLM analysis failed for %s", prompt_key)
-                        progress.update(task, advance=1, description=f"✗ {prompt_key} - {str(e)[:50]}")
+                        error_type = type(e).__name__
+                        logger.error("LLM analysis failed for %s: %s", prompt_key, error_type)
+                        logger.debug("Full error: %s", e, exc_info=True)
+                        progress.update(
+                            task, advance=1, description=f"✗ {prompt_key} - {error_type}"
+                        )
         else:
             # Quiet mode: no progress display
             for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
@@ -300,7 +318,10 @@ def run_pipeline(
                             analyses[prompt_key] = AssistantAnalysis(**cached_llm)
                             assistant_id, label = prompt_key.split("::", 1)
                             for entry in prompts_out:
-                                if entry["assistant_id"] == assistant_id and entry["label"] == label:
+                                if (
+                                    entry["assistant_id"] == assistant_id
+                                    and entry["label"] == label
+                                ):
                                     entry["llm_analysis"] = cached_llm
                                     break
                             continue
@@ -363,7 +384,10 @@ def run_pipeline(
                             )
                             assistant_id, label = prompt_key.split("::", 1)
                             for entry in prompts_out:
-                                if entry["assistant_id"] == assistant_id and entry["label"] == label:
+                                if (
+                                    entry["assistant_id"] == assistant_id
+                                    and entry["label"] == label
+                                ):
                                     entry["llm_analysis"] = analysis.model_dump()
                                     break
                             retry_success = True
@@ -377,8 +401,10 @@ def run_pipeline(
                             logger.error("Authentication failed: %s", auth_e)
                             logger.error("Stopping pipeline - check your LLM_API_KEY")
                             sys.exit(1)
-                except Exception:
-                    logger.exception("LLM analysis failed for %s", prompt_key)
+                except Exception as e:
+                    error_type = type(e).__name__
+                    logger.error("LLM analysis failed for %s: %s", prompt_key, error_type)
+                    logger.debug("Full error: %s", e, exc_info=True)
 
         if analyses:
             comparisons = compute_rankings(analyses, prompts_out)
