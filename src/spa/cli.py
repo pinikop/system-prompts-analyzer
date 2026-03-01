@@ -13,6 +13,7 @@ app = typer.Typer(
     name="spa",
     help="System Prompts Analyzer - analyze coding assistant prompts",
     add_completion=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 console = Console()
 
@@ -49,6 +50,7 @@ def main(
     ),
     force: bool = typer.Option(
         False,
+        "-f",
         "--force",
         help="Reprocess everything, ignore cache",
     ),
