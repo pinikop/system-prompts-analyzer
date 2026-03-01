@@ -60,6 +60,18 @@ The pipeline caches LLM results in `analysis.json` via `cache_info.file_hashes`.
 - API key always required in `.env` file
 - Model can be specified via `--llm-model` CLI flag
 
+**Error handling:**
+- Custom exceptions: `AuthenticationError` (fail-fast), `NetworkError` (retry with exponential backoff)
+- Network retries: 3 attempts with 1s, 2s, 4s delays
+- Auth errors exit immediately with helpful message
+- Validation errors retry once with corrective prompt
+
+**Progress display:**
+- Uses Rich library with spinner, progress bar, and percentage
+- Shows current prompt being analyzed in real-time
+- Fixed-width columns prevent progress bar position jumping
+- Quiet mode (`--quiet`) disables progress display
+
 ## Conventions
 
 - The web UI uses Pico CSS (classless) with minimal custom CSS
