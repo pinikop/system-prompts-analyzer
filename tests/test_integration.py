@@ -5,20 +5,44 @@ from pathlib import Path
 
 import pytest
 
+from spa.config import DATA_DIR, load_assistant_registry
 from spa.pipeline import run_pipeline
 
-EXPECTED_ASSISTANTS = 9
-EXPECTED_CURRENT = 16
-EXPECTED_TOTAL = 26
-EXPECTED_MODELS = {
-    "claude-sonnet-4",
-    "gemini-2.5-pro",
-    "gpt-4.1",
-    "gpt-4o",
-    "gpt-5",
-    "gpt-5-mini",
-}
-MULTI_MODEL_ASSISTANTS = {"vscode-copilot": 6, "augment": 2, "amp": 2}
+
+def _derive_expected_counts() -> tuple[int, int, int, set[str], dict[str, int]]:
+    """Derive expected counts from agents.yaml so tests stay in sync with data."""
+    registry = load_assistant_registry()
+
+    assistant_count = len(registry)
+    total_prompts = 0
+    current_prompts = 0
+    models: set[str] = set()
+    # Assistants with >1 current prompt (multi-model)
+    multi_model: dict[str, int] = {}
+
+    for assistant_id, assistant in registry.items():
+        current_count = 0
+        for prompt_entry in assistant.get("prompts", []):
+            prompt_path = DATA_DIR / prompt_entry["path"]
+            if not prompt_path.exists():
+                continue
+            total_prompts += 1
+            if prompt_entry.get("current", False):
+                current_prompts += 1
+                current_count += 1
+                model = prompt_entry.get("model")
+                if model:
+                    models.add(model)
+        if current_count > 1:
+            multi_model[assistant_id] = current_count
+
+    return assistant_count, total_prompts, current_prompts, models, multi_model
+
+
+EXPECTED_ASSISTANTS, EXPECTED_TOTAL, EXPECTED_CURRENT, EXPECTED_MODELS, MULTI_MODEL_ASSISTANTS = (
+    _derive_expected_counts()
+)
+
 REQUIRED_PROMPT_KEYS = {
     "assistant_id",
     "assistant_name",
