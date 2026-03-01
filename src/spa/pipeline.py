@@ -4,10 +4,12 @@ import json
 import logging
 import os
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 
 from spa.config import DATA_DIR, DEFAULT_LLM_MODEL, WEB_DATA_DIR, load_assistant_registry
 from spa.data_source import compute_file_hash
@@ -171,54 +173,120 @@ def run_pipeline(
 
         logger.info("Running LLM analysis on %d prompts...", len(llm_inputs))
 
-        for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
-            # Check cache: reuse previous LLM analysis if file is unchanged
-            path_str = prompt_paths.get(prompt_key)
-            if path_str and previous_prompts:
-                current_hash = compute_file_hash(DATA_DIR / path_str)
-                cached_hash = previous_file_hashes.get(path_str)
-                if current_hash == cached_hash and prompt_key in previous_prompts:
-                    cached_llm = previous_prompts[prompt_key].get("llm_analysis")
-                    if cached_llm:
-                        logger.info("  %s: using cached LLM analysis", prompt_key)
-                        analyses[prompt_key] = AssistantAnalysis(**cached_llm)
+        # Determine if we should show progress (not in quiet mode)
+        show_progress = logger.getEffectiveLevel() < logging.WARNING
+
+        if show_progress:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[bold blue]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            ) as progress:
+                task = progress.add_task("Analyzing prompts", total=len(llm_inputs))
+
+                for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
+                    # Check cache: reuse previous LLM analysis if file is unchanged
+                    path_str = prompt_paths.get(prompt_key)
+                    if path_str and previous_prompts:
+                        current_hash = compute_file_hash(DATA_DIR / path_str)
+                        cached_hash = previous_file_hashes.get(path_str)
+                        if current_hash == cached_hash and prompt_key in previous_prompts:
+                            cached_llm = previous_prompts[prompt_key].get("llm_analysis")
+                            if cached_llm:
+                                logger.debug("  %s: using cached LLM analysis", prompt_key)
+                                analyses[prompt_key] = AssistantAnalysis(**cached_llm)
+                                assistant_id, label = prompt_key.split("::", 1)
+                                for entry in prompts_out:
+                                    if entry["assistant_id"] == assistant_id and entry["label"] == label:
+                                        entry["llm_analysis"] = cached_llm
+                                        break
+                                progress.update(task, advance=1, description=f"✓ {prompt_key} (cached)")
+                                continue
+
+                    try:
+                        analysis, usage = analyze_assistant(
+                            raw_text=raw_text,
+                            tool_names=tool_names,
+                            assistant_name=assistant_name,
+                            model=llm_model,
+                        )
+                        analyses[prompt_key] = analysis
+
+                        # Accumulate token usage
+                        total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
+                        total_tokens_used["completion_tokens"] += usage["completion_tokens"]
+                        total_tokens_used["total_tokens"] += usage["total_tokens"]
+
+                        logger.debug(
+                            "  %s: %d tokens (in: %d, out: %d)",
+                            prompt_key,
+                            usage["total_tokens"],
+                            usage["prompt_tokens"],
+                            usage["completion_tokens"],
+                        )
+
+                        # Attach to the matching prompt entry
                         assistant_id, label = prompt_key.split("::", 1)
                         for entry in prompts_out:
                             if entry["assistant_id"] == assistant_id and entry["label"] == label:
-                                entry["llm_analysis"] = cached_llm
+                                entry["llm_analysis"] = analysis.model_dump()
                                 break
-                        continue
 
-            try:
-                analysis, usage = analyze_assistant(
-                    raw_text=raw_text,
-                    tool_names=tool_names,
-                    assistant_name=assistant_name,
-                    model=llm_model,
-                )
-                analyses[prompt_key] = analysis
+                        progress.update(task, advance=1, description=f"✓ {prompt_key}")
+                    except Exception as e:
+                        logger.exception("LLM analysis failed for %s", prompt_key)
+                        progress.update(task, advance=1, description=f"✗ {prompt_key} - {str(e)[:50]}")
+        else:
+            # Quiet mode: no progress display
+            for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
+                # Check cache: reuse previous LLM analysis if file is unchanged
+                path_str = prompt_paths.get(prompt_key)
+                if path_str and previous_prompts:
+                    current_hash = compute_file_hash(DATA_DIR / path_str)
+                    cached_hash = previous_file_hashes.get(path_str)
+                    if current_hash == cached_hash and prompt_key in previous_prompts:
+                        cached_llm = previous_prompts[prompt_key].get("llm_analysis")
+                        if cached_llm:
+                            logger.debug("  %s: using cached LLM analysis", prompt_key)
+                            analyses[prompt_key] = AssistantAnalysis(**cached_llm)
+                            assistant_id, label = prompt_key.split("::", 1)
+                            for entry in prompts_out:
+                                if entry["assistant_id"] == assistant_id and entry["label"] == label:
+                                    entry["llm_analysis"] = cached_llm
+                                    break
+                            continue
 
-                # Accumulate token usage
-                total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
-                total_tokens_used["completion_tokens"] += usage["completion_tokens"]
-                total_tokens_used["total_tokens"] += usage["total_tokens"]
+                try:
+                    analysis, usage = analyze_assistant(
+                        raw_text=raw_text,
+                        tool_names=tool_names,
+                        assistant_name=assistant_name,
+                        model=llm_model,
+                    )
+                    analyses[prompt_key] = analysis
 
-                logger.info(
-                    "  %s: %d tokens (in: %d, out: %d)",
-                    prompt_key,
-                    usage["total_tokens"],
-                    usage["prompt_tokens"],
-                    usage["completion_tokens"],
-                )
+                    # Accumulate token usage
+                    total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
+                    total_tokens_used["completion_tokens"] += usage["completion_tokens"]
+                    total_tokens_used["total_tokens"] += usage["total_tokens"]
 
-                # Attach to the matching prompt entry
-                assistant_id, label = prompt_key.split("::", 1)
-                for entry in prompts_out:
-                    if entry["assistant_id"] == assistant_id and entry["label"] == label:
-                        entry["llm_analysis"] = analysis.model_dump()
-                        break
-            except Exception:
-                logger.exception("LLM analysis failed for %s", prompt_key)
+                    logger.debug(
+                        "  %s: %d tokens (in: %d, out: %d)",
+                        prompt_key,
+                        usage["total_tokens"],
+                        usage["prompt_tokens"],
+                        usage["completion_tokens"],
+                    )
+
+                    # Attach to the matching prompt entry
+                    assistant_id, label = prompt_key.split("::", 1)
+                    for entry in prompts_out:
+                        if entry["assistant_id"] == assistant_id and entry["label"] == label:
+                            entry["llm_analysis"] = analysis.model_dump()
+                            break
+                except Exception:
+                    logger.exception("LLM analysis failed for %s", prompt_key)
 
         if analyses:
             comparisons = compute_rankings(analyses, prompts_out)
