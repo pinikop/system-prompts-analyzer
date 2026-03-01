@@ -433,8 +433,46 @@ class TestExceptionTypes:
 class TestErrorCategorization:
     """Test error categorization from litellm exceptions."""
 
+    def test_litellm_auth_exception_raises_authentication_error(self) -> None:
+        """litellm AuthenticationError type raises our AuthenticationError."""
+        import litellm.exceptions as le
+
+        from spa.llm.analyzer import AuthenticationError, analyze_assistant
+
+        with patch("litellm.completion") as mock_completion:
+            mock_completion.side_effect = le.AuthenticationError(
+                message="Invalid API key", llm_provider="test", model="test"
+            )
+
+            with pytest.raises(AuthenticationError, match="API key invalid or missing"):
+                analyze_assistant(
+                    raw_text="test",
+                    tool_names=[],
+                    assistant_name="TestBot",
+                    model="test-model",
+                )
+
+    def test_litellm_connection_exception_raises_network_error(self) -> None:
+        """litellm APIConnectionError type raises our NetworkError."""
+        import litellm.exceptions as le
+
+        from spa.llm.analyzer import NetworkError, analyze_assistant
+
+        with patch("litellm.completion") as mock_completion:
+            mock_completion.side_effect = le.APIConnectionError(
+                message="Connection refused", llm_provider="test", model="test"
+            )
+
+            with pytest.raises(NetworkError, match="Network error"):
+                analyze_assistant(
+                    raw_text="test",
+                    tool_names=[],
+                    assistant_name="TestBot",
+                    model="test-model",
+                )
+
     def test_api_key_error_raises_authentication_error(self) -> None:
-        """litellm errors about API keys raise AuthenticationError."""
+        """String-based fallback: API key errors raise AuthenticationError."""
         from spa.llm.analyzer import AuthenticationError, analyze_assistant
 
         with patch("litellm.completion") as mock_completion:
@@ -449,7 +487,7 @@ class TestErrorCategorization:
                 )
 
     def test_unauthorized_error_raises_authentication_error(self) -> None:
-        """litellm unauthorized errors raise AuthenticationError."""
+        """String-based fallback: unauthorized errors raise AuthenticationError."""
         from spa.llm.analyzer import AuthenticationError, analyze_assistant
 
         with patch("litellm.completion") as mock_completion:
@@ -464,7 +502,7 @@ class TestErrorCategorization:
                 )
 
     def test_timeout_error_raises_network_error(self) -> None:
-        """litellm timeout errors raise NetworkError."""
+        """String-based fallback: timeout errors raise NetworkError."""
         from spa.llm.analyzer import NetworkError, analyze_assistant
 
         with patch("litellm.completion") as mock_completion:
@@ -479,7 +517,7 @@ class TestErrorCategorization:
                 )
 
     def test_connection_error_raises_network_error(self) -> None:
-        """litellm connection errors raise NetworkError."""
+        """String-based fallback: connection errors raise NetworkError."""
         from spa.llm.analyzer import NetworkError, analyze_assistant
 
         with patch("litellm.completion") as mock_completion:
@@ -587,11 +625,8 @@ def test_analyzer_retries_on_network_error_and_succeeds(monkeypatch):
             raise Exception("connection timeout")
         return mock_response
 
-    mock_litellm = MagicMock()
-    mock_litellm.completion = fake_completion
-
     with (
-        patch.dict("sys.modules", {"litellm": mock_litellm}),
+        patch.object(analyzer_mod.litellm, "completion", side_effect=fake_completion),
         patch.object(analyzer_mod.time, "sleep"),
     ):
         response, content = analyzer_mod._llm_completion_with_retries({"model": "test"})
@@ -609,11 +644,8 @@ def test_analyzer_raises_after_retries_exhausted(monkeypatch):
     def fake_completion(**kwargs):
         raise Exception("connection timeout")
 
-    mock_litellm = MagicMock()
-    mock_litellm.completion = fake_completion
-
     with (
-        patch.dict("sys.modules", {"litellm": mock_litellm}),
+        patch.object(analyzer_mod.litellm, "completion", side_effect=fake_completion),
         patch.object(analyzer_mod.time, "sleep"),
     ):
         with pytest.raises(analyzer_mod.NetworkError):

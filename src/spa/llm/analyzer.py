@@ -63,40 +63,61 @@ class TokenUsage:
 
 def _classify_llm_error(e: Exception) -> Exception:
     """Classify an LLM API exception into AuthenticationError, NetworkError, or pass through."""
+    import litellm.exceptions as le
+
+    if isinstance(e, le.AuthenticationError):
+        return AuthenticationError(f"API key invalid or missing: {e}")
+    if isinstance(e, (le.APIConnectionError, le.ServiceUnavailableError, le.BadGatewayError)):
+        return NetworkError(f"Network error: {e}")
+
+    # Fallback: string matching for errors litellm wraps generically
     error_str = str(e).lower()
     if "api key" in error_str or "unauthorized" in error_str or "authentication" in error_str:
         return AuthenticationError(f"API key invalid or missing: {e}")
-    if "timeout" in error_str or "connection" in error_str or "network" in error_str:
+    if "timeout" in error_str or "connection" in error_str:
         return NetworkError(f"Network error: {e}")
     return e
+
+
+def _schema_to_example() -> str:
+    """Generate a JSON example from AssistantAnalysis field descriptions."""
+    from typing import Literal, get_args, get_origin
+
+    lines = ["{"]
+    fields = list(AssistantAnalysis.model_fields.items())
+    for i, (name, info) in enumerate(fields):
+        desc = info.description or name
+        annotation = info.annotation
+
+        # Literal fields: show allowed values
+        if get_origin(annotation) is Literal:
+            options = "|".join(str(a) for a in get_args(annotation))
+            value = f'"{options}"'
+        # List fields: show with [] brackets
+        elif get_origin(annotation) is list:
+            value = f'["{desc}"]'
+        else:
+            value = f'"{desc}"'
+
+        comma = "," if i < len(fields) - 1 else ""
+        lines.append(f'  "{name}": {value}{comma}')
+    lines.append("}")
+    return "\n".join(lines)
 
 
 def _build_prompt(raw_text: str, tool_names: list[str], assistant_name: str) -> str:
     """Build LLM prompt for analyzing a coding assistant's system prompt."""
     tools = "\n".join(f"- {t}" for t in tool_names) if tool_names else "No tools defined."
+    field_count = len(AssistantAnalysis.model_fields)
+    schema_example = _schema_to_example()
 
     return f"""Analyze this system prompt for the coding assistant "{assistant_name}".
 
-Return a FLAT JSON object with ALL 14 fields at the top level.
+Return a FLAT JSON object with ALL {field_count} fields at the top level.
 Do NOT nest fields under section keys.
 
 Required JSON structure (all fields at top level):
-{{
-  "identity": "1-2 sentence identity statement",
-  "tone": ["3-5 tone descriptors, e.g. concise, direct, cautious"],
-  "personality": "1-2 sentence personality summary",
-  "behavioral_rules": ["5-10 key behavioral rules extracted from the prompt"],
-  "unique_features": ["3-5 features that distinguish this coding assistant"],
-  "coding_philosophy": "1-2 sentence summary of coding approach",
-  "safety_emphasis": "low|medium|high|very_high",
-  "safety_details": "1-2 sentence description of safety approach",
-  "autonomy_level": "low|medium|high",
-  "error_handling": "1-2 sentence approach to errors",
-  "permission_rules": ["3-5 rules about when it asks permission vs. acts autonomously"],
-  "workflow_approach": "1-2 sentences on methodology (TDD, debugging, planning)",
-  "safety_rules": ["3-5 key safety constraints or prohibited actions"],
-  "tool_philosophy": "1-2 sentences on tool usage preferences and patterns"
-}}
+{schema_example}
 
 **Available tools:**
 {tools}
@@ -105,7 +126,7 @@ Required JSON structure (all fields at top level):
 {raw_text}
 
 CRITICAL: Return ONLY a single flat JSON object.
-All 14 fields must be at the top level, not nested under
+All {field_count} fields must be at the top level, not nested under
 "operational" or "thematic" keys.
 """
 
@@ -125,6 +146,7 @@ def _parse_response(content: str) -> AssistantAnalysis:
 
 _NETWORK_MAX_RETRIES = 3
 _NETWORK_BACKOFF_BASE = 2  # seconds: 1, 2, 4
+_LLM_TIMEOUT = 60  # seconds per API call
 
 
 def _llm_completion_with_retries(kwargs: dict) -> tuple:
@@ -180,6 +202,7 @@ def analyze_assistant(
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.3,
         "response_format": {"type": "json_object"},
+        "timeout": _LLM_TIMEOUT,
     }
     if api_key:
         kwargs["api_key"] = api_key
