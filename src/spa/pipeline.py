@@ -176,19 +176,30 @@ def run_pipeline(
         # Determine if we should show progress (not in quiet mode)
         show_progress = logger.getEffectiveLevel() < logging.WARNING
 
-        # Calculate max prompt key length for consistent progress bar positioning
+        # Calculate max prompt key length for fixed-width display
         max_key_len = max(len(key) for key in llm_inputs.keys()) if llm_inputs else 0
 
         if show_progress:
             with Progress(
                 SpinnerColumn(),
-                TextColumn("[bold blue]{task.description}"),
+                TextColumn("{task.fields[status]}", justify="left"),
+                TextColumn("[bold blue]{task.fields[name]:<" + str(max_key_len) + "}"),
+                TextColumn("{task.fields[suffix]}", justify="left"),
                 BarColumn(),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             ) as progress:
-                task = progress.add_task("Analyzing prompts", total=len(llm_inputs))
+                task = progress.add_task(
+                    "Analyzing prompts",
+                    total=len(llm_inputs),
+                    status="",
+                    name="",
+                    suffix="",
+                )
 
                 for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
+                    # Update display to show current prompt being analyzed
+                    progress.update(task, status="⠿", name=prompt_key, suffix=" ...")
+
                     # Check cache: reuse previous LLM analysis if file is unchanged
                     path_str = prompt_paths.get(prompt_key)
                     if path_str and previous_prompts:
@@ -210,7 +221,9 @@ def run_pipeline(
                                 progress.update(
                                     task,
                                     advance=1,
-                                    description=f"✓ {prompt_key:<{max_key_len}} (cached)",
+                                    status="✓",
+                                    name=prompt_key,
+                                    suffix=" (cached)",
                                 )
                                 continue
 
@@ -291,7 +304,9 @@ def run_pipeline(
                                     progress.update(
                                         task,
                                         advance=1,
-                                        description=f"✗ {prompt_key:<{max_key_len}} - network",
+                                        status="✗",
+                                        name=prompt_key,
+                                        suffix=" - network",
                                     )
                             except AuthenticationError as auth_e:
                                 # Auth error during retry - fail fast
@@ -301,7 +316,7 @@ def run_pipeline(
 
                         if retry_success:
                             progress.update(
-                                task, advance=1, description=f"✓ {prompt_key:<{max_key_len}}"
+                                task, advance=1, status="✓", name=prompt_key, suffix=""
                             )
                     except Exception as e:
                         error_type = type(e).__name__
@@ -310,7 +325,9 @@ def run_pipeline(
                         progress.update(
                             task,
                             advance=1,
-                            description=f"✗ {prompt_key:<{max_key_len}} - {error_type}",
+                            status="✗",
+                            name=prompt_key,
+                            suffix=f" - {error_type}",
                         )
         else:
             # Quiet mode: no progress display
