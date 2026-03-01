@@ -528,3 +528,94 @@ def test_pipeline_exits_on_authentication_error(tmp_path, monkeypatch):
                 assert exc_info.value.code == 1
                 # Should only call analyze_assistant once (fail fast)
                 assert mock_analyze.call_count == 1
+
+
+def _make_registry_and_file(tmp_path):
+    """Return (registry dict, data_dir) with one current prompt file."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True)
+    (data_dir / "test.txt").write_text("Test prompt")
+    registry = {
+        "test-assistant": {
+            "name": "Test",
+            "prompts": [{"label": "v1", "path": "test.txt", "current": True}],
+            "tools": [],
+        }
+    }
+    return registry, data_dir
+
+
+def _fake_analysis():
+    """Return a minimal valid (AssistantAnalysis, usage) tuple."""
+    from spa.llm.schemas import AssistantAnalysis
+
+    analysis = AssistantAnalysis(
+        identity="Test identity.",
+        tone=["direct", "concise", "clear"],
+        personality="Test personality.",
+        behavioral_rules=["rule1", "rule2", "rule3", "rule4", "rule5"],
+        unique_features=["feat1", "feat2", "feat3"],
+        coding_philosophy="Test philosophy.",
+        safety_emphasis="medium",
+        safety_details="Test safety.",
+        autonomy_level="medium",
+        error_handling="Test error handling.",
+        permission_rules=["perm1", "perm2", "perm3"],
+        workflow_approach="Test workflow.",
+        safety_rules=["sr1", "sr2", "sr3"],
+        tool_philosophy="Test tool philosophy.",
+    )
+    usage = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+    return analysis, usage
+
+
+def test_pipeline_retries_on_network_error_and_succeeds(tmp_path, monkeypatch):
+    """Pipeline retries analyze_assistant on NetworkError and stores result on success."""
+    from spa.llm.analyzer import NetworkError
+    from spa.pipeline import run_pipeline
+
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+
+    registry, data_dir = _make_registry_and_file(tmp_path)
+    analysis, usage = _fake_analysis()
+
+    # Fail twice with NetworkError, succeed on third attempt
+    mock_analyze = MagicMock(
+        side_effect=[NetworkError("timeout"), NetworkError("timeout"), (analysis, usage)]
+    )
+
+    with (
+        patch("spa.llm.analyzer.analyze_assistant", mock_analyze),
+        patch("spa.pipeline.load_assistant_registry", return_value=registry),
+        patch("spa.pipeline.DATA_DIR", data_dir),
+        patch("time.sleep"),  # skip actual delays
+    ):
+        result = run_pipeline(output_path=tmp_path / "output.json")
+
+    assert mock_analyze.call_count == 3
+    prompt = result["prompts"][0]
+    assert prompt["llm_analysis"] is not None
+    assert prompt["llm_analysis"]["identity"] == "Test identity."
+
+
+def test_pipeline_logs_error_after_retries_exhausted(tmp_path, monkeypatch):
+    """Pipeline logs an error and continues when all 3 network retries fail."""
+    from spa.llm.analyzer import NetworkError
+    from spa.pipeline import run_pipeline
+
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+
+    registry, data_dir = _make_registry_and_file(tmp_path)
+
+    mock_analyze = MagicMock(side_effect=NetworkError("connection refused"))
+
+    with (
+        patch("spa.llm.analyzer.analyze_assistant", mock_analyze),
+        patch("spa.pipeline.load_assistant_registry", return_value=registry),
+        patch("spa.pipeline.DATA_DIR", data_dir),
+        patch("time.sleep"),
+    ):
+        result = run_pipeline(output_path=tmp_path / "output.json")
+
+    assert mock_analyze.call_count == 4  # 1 initial + 3 retries
+    assert result["prompts"][0]["llm_analysis"] is None
