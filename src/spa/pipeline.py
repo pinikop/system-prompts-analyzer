@@ -176,6 +176,9 @@ def run_pipeline(
         # Determine if we should show progress (not in quiet mode)
         show_progress = logger.getEffectiveLevel() < logging.WARNING
 
+        # Calculate max prompt key length for consistent progress bar positioning
+        max_key_len = max(len(key) for key in llm_inputs.keys()) if llm_inputs else 0
+
         if show_progress:
             with Progress(
                 SpinnerColumn(),
@@ -205,7 +208,9 @@ def run_pipeline(
                                         entry["llm_analysis"] = cached_llm
                                         break
                                 progress.update(
-                                    task, advance=1, description=f"✓ {prompt_key} (cached)"
+                                    task,
+                                    advance=1,
+                                    description=f"✓ {prompt_key:<{max_key_len}} (cached)",
                                 )
                                 continue
 
@@ -286,7 +291,7 @@ def run_pipeline(
                                     progress.update(
                                         task,
                                         advance=1,
-                                        description=f"✗ {prompt_key} - network error",
+                                        description=f"✗ {prompt_key:<{max_key_len}} - network",
                                     )
                             except AuthenticationError as auth_e:
                                 # Auth error during retry - fail fast
@@ -295,13 +300,17 @@ def run_pipeline(
                                 sys.exit(1)
 
                         if retry_success:
-                            progress.update(task, advance=1, description=f"✓ {prompt_key}")
+                            progress.update(
+                                task, advance=1, description=f"✓ {prompt_key:<{max_key_len}}"
+                            )
                     except Exception as e:
                         error_type = type(e).__name__
                         logger.error("LLM analysis failed for %s: %s", prompt_key, error_type)
                         logger.debug("Full error: %s", e, exc_info=True)
                         progress.update(
-                            task, advance=1, description=f"✗ {prompt_key} - {error_type}"
+                            task,
+                            advance=1,
+                            description=f"✗ {prompt_key:<{max_key_len}} - {error_type}",
                         )
         else:
             # Quiet mode: no progress display
