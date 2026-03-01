@@ -73,6 +73,103 @@ def _merge_tools(
     return list(seen.values())
 
 
+def _compute_file_hashes(registry: dict) -> dict[str, str]:
+    """Compute SHA256 hashes for all prompt files in the registry."""
+    file_hashes: dict[str, str] = {}
+    for assistant in registry.values():
+        for prompt_entry in assistant.get("prompts", []):
+            prompt_path = DATA_DIR / prompt_entry["path"]
+            if prompt_path.exists():
+                file_hashes[prompt_entry["path"]] = compute_file_hash(prompt_path)
+    return file_hashes
+
+
+@dataclass
+class _ParsedEntry:
+    """A parsed and measured prompt entry, ready for output."""
+
+    entry: dict
+    prompt_key: str
+    raw_text: str
+    tool_names: list[str]
+    assistant_name: str
+    path_str: str
+    is_current: bool
+
+
+def _parse_and_measure(registry: dict, skip_llm: bool) -> tuple[
+    list[_ParsedEntry],
+    list[dict],
+    set[str],
+    set[str],
+]:
+    """Parse all prompts and compute metrics.
+
+    Returns (parsed_entries, all_assistants, all_models, all_vendors).
+    """
+    parsed_entries: list[_ParsedEntry] = []
+    all_models: set[str] = set()
+    all_assistants: list[dict] = []
+    all_vendors: set[str] = set()
+
+    for assistant_id, assistant in registry.items():
+        assistant_name = assistant["name"]
+        vendor = assistant.get("vendor", "Unknown")
+        all_assistants.append({"id": assistant_id, "name": assistant_name})
+        all_vendors.add(vendor)
+
+        # Parse separate tool files for this assistant
+        file_tools: list[ToolDefinition] = []
+        for tool_entry in assistant.get("tools", []):
+            tool_path = DATA_DIR / tool_entry["path"]
+            if tool_path.exists():
+                fmt = tool_entry.get("format", "json")
+                file_tools.extend(_parse_tool_file(tool_path, fmt))
+
+        for prompt_entry in assistant.get("prompts", []):
+            prompt_path = DATA_DIR / prompt_entry["path"]
+            if not prompt_path.exists():
+                continue
+
+            fmt = prompt_entry.get("format", "txt")
+            parsed, inline_tools = _parse_prompt_file(prompt_path, fmt)
+            merged_tools = _merge_tools(inline_tools, file_tools)
+
+            metrics = compute_metrics(parsed)
+            tool_metrics = compute_tool_metrics(merged_tools)
+
+            model = prompt_entry.get("model")
+            if model:
+                all_models.add(model)
+
+            is_current = prompt_entry.get("current", False)
+            prompt_key = f"{assistant_id}::{prompt_entry['label']}"
+
+            entry = {
+                "assistant_id": assistant_id,
+                "assistant_name": assistant_name,
+                "vendor": vendor,
+                "label": prompt_entry["label"],
+                "model": model,
+                "is_current": is_current,
+                "metrics": metrics,
+                "tools": tool_metrics,
+                "llm_analysis": None,
+            }
+
+            parsed_entries.append(_ParsedEntry(
+                entry=entry,
+                prompt_key=prompt_key,
+                raw_text=parsed.raw_text,
+                tool_names=[t.name for t in merged_tools],
+                assistant_name=assistant_name,
+                path_str=prompt_entry["path"],
+                is_current=is_current,
+            ))
+
+    return parsed_entries, all_assistants, all_models, all_vendors
+
+
 def _process_prompt(
     prompt_key: str,
     raw_text: str,
@@ -133,6 +230,119 @@ def _process_prompt(
     )
 
 
+def _run_llm_analysis(
+    parsed_entries: list[_ParsedEntry],
+    *,
+    llm_model: str,
+    file_hashes: dict[str, str],
+    previous_file_hashes: dict[str, str],
+    previous_prompts: dict[str, dict],
+    skip_llm: bool,
+) -> tuple[list[dict], dict[str, int], str | None]:
+    """Run LLM analysis on current prompts and compute rankings.
+
+    Returns (comparisons, total_tokens_used, llm_model_used).
+    Mutates each entry's llm_analysis field in-place.
+    """
+    comparisons: list[dict] = []
+    total_tokens_used = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+    # Collect current prompts that need LLM analysis
+    llm_entries = [e for e in parsed_entries if e.is_current and not skip_llm]
+    if not llm_entries:
+        return comparisons, total_tokens_used, None
+
+    from spa.llm.rankings import compute_rankings
+    from spa.llm.schemas import AssistantAnalysis
+
+    analyses: dict[str, AssistantAnalysis] = {}
+    prompts_out = [e.entry for e in parsed_entries]
+
+    logger.info("Running LLM analysis on %d prompts...", len(llm_entries))
+
+    def _apply_result(result: _PromptResult) -> str:
+        """Apply an LLM result to shared state. Returns a status suffix for progress display."""
+        if result.analysis is not None:
+            analyses[result.prompt_key] = result.analysis
+            aid, label = result.prompt_key.split("::", 1)
+            for entry in prompts_out:
+                if entry["assistant_id"] == aid and entry["label"] == label:
+                    entry["llm_analysis"] = result.analysis_dict
+                    break
+
+        if not result.cached:
+            total_tokens_used["prompt_tokens"] += result.token_usage["prompt_tokens"]
+            total_tokens_used["completion_tokens"] += result.token_usage["completion_tokens"]
+            total_tokens_used["total_tokens"] += result.token_usage["total_tokens"]
+
+        if result.error:
+            return f" - {result.error}"
+        if result.cached:
+            return " (cached)"
+        return ""
+
+    show_progress = logger.getEffectiveLevel() < logging.WARNING
+    max_key_len = max(len(e.prompt_key) for e in llm_entries)
+
+    def _process_all(on_update=None):
+        for pe in llm_entries:
+            if on_update:
+                on_update(status="\u2807", name=pe.prompt_key, suffix=" ...")
+
+            result = _process_prompt(
+                prompt_key=pe.prompt_key,
+                raw_text=pe.raw_text,
+                tool_names=pe.tool_names,
+                assistant_name=pe.assistant_name,
+                llm_model=llm_model,
+                path_str=pe.path_str,
+                file_hashes=file_hashes,
+                previous_file_hashes=previous_file_hashes,
+                previous_prompts=previous_prompts,
+            )
+
+            suffix = _apply_result(result)
+
+            if on_update:
+                status = "\u2717" if result.error else "\u2713"
+                on_update(advance=1, status=status, name=pe.prompt_key, suffix=suffix)
+
+    if show_progress:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("{task.fields[status]}", justify="left"),
+            TextColumn("[bold blue]{task.fields[name]:<" + str(max_key_len) + "}"),
+            TextColumn("{task.fields[suffix]}", justify="left"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        ) as progress:
+            task = progress.add_task(
+                "Analyzing prompts",
+                total=len(llm_entries),
+                status="",
+                name="",
+                suffix="",
+            )
+
+            def on_update(**kwargs) -> None:
+                progress.update(task, **kwargs)
+
+            _process_all(on_update)
+    else:
+        _process_all()
+
+    if analyses:
+        comparisons = compute_rankings(analyses, prompts_out)
+        logger.info(
+            "LLM analysis complete. Total tokens: %d (in: %d, out: %d)",
+            total_tokens_used["total_tokens"],
+            total_tokens_used["prompt_tokens"],
+            total_tokens_used["completion_tokens"],
+        )
+
+    return comparisons, total_tokens_used, llm_model
+
+
 def run_pipeline(
     *,
     output_path: Path | None = None,
@@ -169,172 +379,24 @@ def run_pipeline(
         except (json.JSONDecodeError, KeyError):
             pass
 
-    prompts_out: list[dict] = []
-    all_models: set[str] = set()
-    all_assistants: list[dict] = []
-    all_vendors: set[str] = set()
-    # Track raw text and tool names for LLM analysis
-    llm_inputs: dict[str, tuple[str, list[str], str]] = {}
-    # Track prompt file paths for cache hash comparison
-    prompt_paths: dict[str, str] = {}
+    # Phase 1: Parse all prompts and compute metrics
+    file_hashes = _compute_file_hashes(registry)
+    parsed_entries, all_assistants, all_models, all_vendors = _parse_and_measure(
+        registry, skip_llm
+    )
 
-    # Compute file hashes once for all prompt files
-    file_hashes: dict[str, str] = {}
-    for assistant in registry.values():
-        for prompt_entry in assistant.get("prompts", []):
-            prompt_path = DATA_DIR / prompt_entry["path"]
-            if prompt_path.exists():
-                file_hashes[prompt_entry["path"]] = compute_file_hash(prompt_path)
+    # Phase 2: Run LLM analysis on current prompts
+    comparisons, total_tokens_used, llm_model_used = _run_llm_analysis(
+        parsed_entries,
+        llm_model=llm_model,
+        file_hashes=file_hashes,
+        previous_file_hashes=previous_file_hashes,
+        previous_prompts=previous_prompts,
+        skip_llm=skip_llm,
+    )
 
-    for assistant_id, assistant in registry.items():
-        assistant_name = assistant["name"]
-        vendor = assistant.get("vendor", "Unknown")
-        all_assistants.append({"id": assistant_id, "name": assistant_name})
-        all_vendors.add(vendor)
-
-        # Parse separate tool files for this assistant
-        file_tools: list[ToolDefinition] = []
-        for tool_entry in assistant.get("tools", []):
-            tool_path = DATA_DIR / tool_entry["path"]
-            if tool_path.exists():
-                fmt = tool_entry.get("format", "json")
-                file_tools.extend(_parse_tool_file(tool_path, fmt))
-
-        # Process each prompt
-        for prompt_entry in assistant.get("prompts", []):
-            prompt_path = DATA_DIR / prompt_entry["path"]
-            if not prompt_path.exists():
-                continue
-
-            fmt = prompt_entry.get("format", "txt")
-            parsed, inline_tools = _parse_prompt_file(prompt_path, fmt)
-            merged_tools = _merge_tools(inline_tools, file_tools)
-
-            metrics = compute_metrics(parsed)
-            tool_metrics = compute_tool_metrics(merged_tools)
-
-            model = prompt_entry.get("model")
-            if model:
-                all_models.add(model)
-
-            is_current = prompt_entry.get("current", False)
-            prompt_key = f"{assistant_id}::{prompt_entry['label']}"
-
-            entry = {
-                "assistant_id": assistant_id,
-                "assistant_name": assistant_name,
-                "vendor": vendor,
-                "label": prompt_entry["label"],
-                "model": model,
-                "is_current": is_current,
-                "metrics": metrics,
-                "tools": tool_metrics,
-                "llm_analysis": None,
-            }
-            prompts_out.append(entry)
-
-            if is_current and not skip_llm:
-                llm_inputs[prompt_key] = (
-                    parsed.raw_text,
-                    [t.name for t in merged_tools],
-                    assistant_name,
-                )
-                prompt_paths[prompt_key] = prompt_entry["path"]
-
-    # Run LLM analysis on current prompts
-    comparisons: list[dict] = []
-    llm_model_used = None
-    total_tokens_used = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-
-    if llm_inputs and not skip_llm:
-        from spa.llm.rankings import compute_rankings
-        from spa.llm.schemas import AssistantAnalysis
-
-        llm_model_used = llm_model
-        analyses: dict[str, AssistantAnalysis] = {}
-
-        logger.info("Running LLM analysis on %d prompts...", len(llm_inputs))
-
-        def _run_and_apply(prompt_key, raw_text, tool_names, assistant_name, on_update=None):
-            """Run _process_prompt and apply results to shared state."""
-            if on_update:
-                on_update(status="\u2807", name=prompt_key, suffix=" ...")
-
-            result = _process_prompt(
-                prompt_key=prompt_key,
-                raw_text=raw_text,
-                tool_names=tool_names,
-                assistant_name=assistant_name,
-                llm_model=llm_model,
-                path_str=prompt_paths.get(prompt_key),
-                file_hashes=file_hashes,
-                previous_file_hashes=previous_file_hashes,
-                previous_prompts=previous_prompts,
-            )
-
-            if result.analysis is not None:
-                analyses[prompt_key] = result.analysis
-                aid, label = prompt_key.split("::", 1)
-                for entry in prompts_out:
-                    if entry["assistant_id"] == aid and entry["label"] == label:
-                        entry["llm_analysis"] = result.analysis_dict
-                        break
-
-            if not result.cached:
-                total_tokens_used["prompt_tokens"] += result.token_usage["prompt_tokens"]
-                total_tokens_used["completion_tokens"] += result.token_usage["completion_tokens"]
-                total_tokens_used["total_tokens"] += result.token_usage["total_tokens"]
-
-            if on_update:
-                if result.error:
-                    suffix = f" - {result.error}"
-                    on_update(advance=1, status="\u2717", name=prompt_key, suffix=suffix)
-                elif result.cached:
-                    on_update(advance=1, status="\u2713", name=prompt_key, suffix=" (cached)")
-                else:
-                    on_update(advance=1, status="\u2713", name=prompt_key, suffix="")
-
-        # Determine if we should show progress (not in quiet mode)
-        show_progress = logger.getEffectiveLevel() < logging.WARNING
-
-        # Calculate max prompt key length for fixed-width display
-        max_key_len = max(len(key) for key in llm_inputs.keys()) if llm_inputs else 0
-
-        if show_progress:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("{task.fields[status]}", justify="left"),
-                TextColumn("[bold blue]{task.fields[name]:<" + str(max_key_len) + "}"),
-                TextColumn("{task.fields[suffix]}", justify="left"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            ) as progress:
-                task = progress.add_task(
-                    "Analyzing prompts",
-                    total=len(llm_inputs),
-                    status="",
-                    name="",
-                    suffix="",
-                )
-
-                def on_update(**kwargs) -> None:
-                    progress.update(task, **kwargs)
-
-                for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
-                    _run_and_apply(prompt_key, raw_text, tool_names, assistant_name, on_update)
-        else:
-            for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
-                _run_and_apply(prompt_key, raw_text, tool_names, assistant_name)
-
-        if analyses:
-            comparisons = compute_rankings(analyses, prompts_out)
-            logger.info(
-                "LLM analysis complete. Total tokens: %d (in: %d, out: %d)",
-                total_tokens_used["total_tokens"],
-                total_tokens_used["prompt_tokens"],
-                total_tokens_used["completion_tokens"],
-            )
-
+    # Phase 3: Assemble and write output
+    prompts_out = [e.entry for e in parsed_entries]
     output = {
         "generated_at": datetime.now(UTC).isoformat(),
         "cache_info": {
