@@ -256,7 +256,7 @@ def run_pipeline(
                                 entry["llm_analysis"] = analysis.model_dump()
                                 break
 
-                        progress.update(task, advance=1, description=f"✓ {prompt_key}")
+                        progress.update(task, advance=1, status="✓", name=prompt_key, suffix="")
                     except AuthenticationError as e:
                         logger.error("Authentication failed: %s", e)
                         logger.error("Stopping pipeline - check your LLM_API_KEY")
