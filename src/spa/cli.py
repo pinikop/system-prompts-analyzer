@@ -112,6 +112,13 @@ def main(
         format="%(levelname)s: %(message)s",
     )
 
+    # Suppress LiteLLM's verbose logging unless --verbose
+    litellm_logger = logging.getLogger("LiteLLM")
+    if verbose:
+        litellm_logger.setLevel(logging.DEBUG)
+    else:
+        litellm_logger.setLevel(logging.ERROR)  # Only show errors
+
     # Determine output path
     output_path = output if output is not None else WEB_DATA_DIR / "analysis.json"
 
