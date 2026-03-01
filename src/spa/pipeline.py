@@ -173,6 +173,105 @@ def run_pipeline(
 
         logger.info("Running LLM analysis on %d prompts...", len(llm_inputs))
 
+        def _process_prompt(
+            prompt_key: str,
+            raw_text: str,
+            tool_names: list[str],
+            assistant_name: str,
+            on_update=None,
+        ) -> None:
+            """Analyze one prompt: check cache, call LLM, attach results.
+
+            on_update: optional callable(**kwargs) forwarded to progress.update().
+            """
+            if on_update:
+                on_update(status="⠿", name=prompt_key, suffix=" ...")
+
+            # Check cache: reuse previous LLM analysis if file is unchanged
+            path_str = prompt_paths.get(prompt_key)
+            if path_str and previous_prompts:
+                current_hash = compute_file_hash(DATA_DIR / path_str)
+                cached_hash = previous_file_hashes.get(path_str)
+                if current_hash == cached_hash and prompt_key in previous_prompts:
+                    cached_llm = previous_prompts[prompt_key].get("llm_analysis")
+                    if cached_llm:
+                        logger.debug("  %s: using cached LLM analysis", prompt_key)
+                        analyses[prompt_key] = AssistantAnalysis(**cached_llm)
+                        aid, label = prompt_key.split("::", 1)
+                        for entry in prompts_out:
+                            if entry["assistant_id"] == aid and entry["label"] == label:
+                                entry["llm_analysis"] = cached_llm
+                                break
+                        if on_update:
+                            on_update(advance=1, status="✓", name=prompt_key, suffix=" (cached)")
+                        return
+
+            def _call() -> tuple:
+                return analyze_assistant(
+                    raw_text=raw_text,
+                    tool_names=tool_names,
+                    assistant_name=assistant_name,
+                    model=llm_model,
+                )
+
+            def _store(analysis, usage) -> None:
+                analyses[prompt_key] = analysis
+                total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
+                total_tokens_used["completion_tokens"] += usage["completion_tokens"]
+                total_tokens_used["total_tokens"] += usage["total_tokens"]
+                logger.debug(
+                    "  %s: %d tokens (in: %d, out: %d)",
+                    prompt_key,
+                    usage["total_tokens"],
+                    usage["prompt_tokens"],
+                    usage["completion_tokens"],
+                )
+                aid, label = prompt_key.split("::", 1)
+                for entry in prompts_out:
+                    if entry["assistant_id"] == aid and entry["label"] == label:
+                        entry["llm_analysis"] = analysis.model_dump()
+                        break
+
+            try:
+                _store(*_call())
+                if on_update:
+                    on_update(advance=1, status="✓", name=prompt_key, suffix="")
+            except AuthenticationError as e:
+                logger.error("Authentication failed: %s", e)
+                logger.error("Stopping pipeline - check your LLM_API_KEY")
+                sys.exit(1)
+            except NetworkError as network_err:
+                # Retry with exponential backoff (3 attempts)
+                last_err = network_err
+                retry_success = False
+                for attempt in range(3):
+                    logger.warning("Network error (attempt %d/3): %s", attempt + 1, last_err)
+                    time.sleep(2**attempt)  # 1s, 2s, 4s
+                    try:
+                        _store(*_call())
+                        retry_success = True
+                        break
+                    except NetworkError as retry_e:
+                        last_err = retry_e
+                        if attempt == 2:  # Last attempt
+                            logger.error("Network error after 3 retries: %s", last_err)
+                            if on_update:
+                                on_update(
+                                    advance=1, status="✗", name=prompt_key, suffix=" - network"
+                                )
+                    except AuthenticationError as auth_e:
+                        logger.error("Authentication failed: %s", auth_e)
+                        logger.error("Stopping pipeline - check your LLM_API_KEY")
+                        sys.exit(1)
+                if retry_success and on_update:
+                    on_update(advance=1, status="✓", name=prompt_key, suffix="")
+            except Exception as e:
+                error_type = type(e).__name__
+                logger.error("LLM analysis failed for %s: %s", prompt_key, error_type)
+                logger.debug("Full error: %s", e, exc_info=True)
+                if on_update:
+                    on_update(advance=1, status="✗", name=prompt_key, suffix=f" - {error_type}")
+
         # Determine if we should show progress (not in quiet mode)
         show_progress = logger.getEffectiveLevel() < logging.WARNING
 
@@ -196,241 +295,14 @@ def run_pipeline(
                     suffix="",
                 )
 
+                def on_update(**kwargs) -> None:
+                    progress.update(task, **kwargs)
+
                 for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
-                    # Update display to show current prompt being analyzed
-                    progress.update(task, status="⠿", name=prompt_key, suffix=" ...")
-
-                    # Check cache: reuse previous LLM analysis if file is unchanged
-                    path_str = prompt_paths.get(prompt_key)
-                    if path_str and previous_prompts:
-                        current_hash = compute_file_hash(DATA_DIR / path_str)
-                        cached_hash = previous_file_hashes.get(path_str)
-                        if current_hash == cached_hash and prompt_key in previous_prompts:
-                            cached_llm = previous_prompts[prompt_key].get("llm_analysis")
-                            if cached_llm:
-                                logger.debug("  %s: using cached LLM analysis", prompt_key)
-                                analyses[prompt_key] = AssistantAnalysis(**cached_llm)
-                                assistant_id, label = prompt_key.split("::", 1)
-                                for entry in prompts_out:
-                                    if (
-                                        entry["assistant_id"] == assistant_id
-                                        and entry["label"] == label
-                                    ):
-                                        entry["llm_analysis"] = cached_llm
-                                        break
-                                progress.update(
-                                    task,
-                                    advance=1,
-                                    status="✓",
-                                    name=prompt_key,
-                                    suffix=" (cached)",
-                                )
-                                continue
-
-                    try:
-                        analysis, usage = analyze_assistant(
-                            raw_text=raw_text,
-                            tool_names=tool_names,
-                            assistant_name=assistant_name,
-                            model=llm_model,
-                        )
-                        analyses[prompt_key] = analysis
-
-                        # Accumulate token usage
-                        total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
-                        total_tokens_used["completion_tokens"] += usage["completion_tokens"]
-                        total_tokens_used["total_tokens"] += usage["total_tokens"]
-
-                        logger.debug(
-                            "  %s: %d tokens (in: %d, out: %d)",
-                            prompt_key,
-                            usage["total_tokens"],
-                            usage["prompt_tokens"],
-                            usage["completion_tokens"],
-                        )
-
-                        # Attach to the matching prompt entry
-                        assistant_id, label = prompt_key.split("::", 1)
-                        for entry in prompts_out:
-                            if entry["assistant_id"] == assistant_id and entry["label"] == label:
-                                entry["llm_analysis"] = analysis.model_dump()
-                                break
-
-                        progress.update(task, advance=1, status="✓", name=prompt_key, suffix="")
-                    except AuthenticationError as e:
-                        logger.error("Authentication failed: %s", e)
-                        logger.error("Stopping pipeline - check your LLM_API_KEY")
-                        sys.exit(1)  # Fail fast
-                    except NetworkError as e:
-                        # Retry with exponential backoff (3 attempts)
-                        retry_success = False
-                        for attempt in range(3):
-                            logger.warning("Network error (attempt %d/3): %s", attempt + 1, e)
-                            time.sleep(2**attempt)  # 1s, 2s, 4s
-                            try:
-                                analysis, usage = analyze_assistant(
-                                    raw_text=raw_text,
-                                    tool_names=tool_names,
-                                    assistant_name=assistant_name,
-                                    model=llm_model,
-                                )
-                                analyses[prompt_key] = analysis
-                                total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
-                                total_tokens_used["completion_tokens"] += usage[
-                                    "completion_tokens"
-                                ]
-                                total_tokens_used["total_tokens"] += usage["total_tokens"]
-                                logger.debug(
-                                    "  %s: %d tokens (in: %d, out: %d)",
-                                    prompt_key,
-                                    usage["total_tokens"],
-                                    usage["prompt_tokens"],
-                                    usage["completion_tokens"],
-                                )
-                                assistant_id, label = prompt_key.split("::", 1)
-                                for entry in prompts_out:
-                                    if (
-                                        entry["assistant_id"] == assistant_id
-                                        and entry["label"] == label
-                                    ):
-                                        entry["llm_analysis"] = analysis.model_dump()
-                                        break
-                                retry_success = True
-                                break  # Success
-                            except NetworkError as retry_e:
-                                e = retry_e
-                                if attempt == 2:  # Last attempt
-                                    logger.error("Network error after 3 retries: %s", e)
-                                    progress.update(
-                                        task,
-                                        advance=1,
-                                        status="✗",
-                                        name=prompt_key,
-                                        suffix=" - network",
-                                    )
-                            except AuthenticationError as auth_e:
-                                # Auth error during retry - fail fast
-                                logger.error("Authentication failed: %s", auth_e)
-                                logger.error("Stopping pipeline - check your LLM_API_KEY")
-                                sys.exit(1)
-
-                        if retry_success:
-                            progress.update(
-                                task, advance=1, status="✓", name=prompt_key, suffix=""
-                            )
-                    except Exception as e:
-                        error_type = type(e).__name__
-                        logger.error("LLM analysis failed for %s: %s", prompt_key, error_type)
-                        logger.debug("Full error: %s", e, exc_info=True)
-                        progress.update(
-                            task,
-                            advance=1,
-                            status="✗",
-                            name=prompt_key,
-                            suffix=f" - {error_type}",
-                        )
+                    _process_prompt(prompt_key, raw_text, tool_names, assistant_name, on_update)
         else:
-            # Quiet mode: no progress display
             for prompt_key, (raw_text, tool_names, assistant_name) in llm_inputs.items():
-                # Check cache: reuse previous LLM analysis if file is unchanged
-                path_str = prompt_paths.get(prompt_key)
-                if path_str and previous_prompts:
-                    current_hash = compute_file_hash(DATA_DIR / path_str)
-                    cached_hash = previous_file_hashes.get(path_str)
-                    if current_hash == cached_hash and prompt_key in previous_prompts:
-                        cached_llm = previous_prompts[prompt_key].get("llm_analysis")
-                        if cached_llm:
-                            logger.debug("  %s: using cached LLM analysis", prompt_key)
-                            analyses[prompt_key] = AssistantAnalysis(**cached_llm)
-                            assistant_id, label = prompt_key.split("::", 1)
-                            for entry in prompts_out:
-                                if (
-                                    entry["assistant_id"] == assistant_id
-                                    and entry["label"] == label
-                                ):
-                                    entry["llm_analysis"] = cached_llm
-                                    break
-                            continue
-
-                try:
-                    analysis, usage = analyze_assistant(
-                        raw_text=raw_text,
-                        tool_names=tool_names,
-                        assistant_name=assistant_name,
-                        model=llm_model,
-                    )
-                    analyses[prompt_key] = analysis
-
-                    # Accumulate token usage
-                    total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
-                    total_tokens_used["completion_tokens"] += usage["completion_tokens"]
-                    total_tokens_used["total_tokens"] += usage["total_tokens"]
-
-                    logger.debug(
-                        "  %s: %d tokens (in: %d, out: %d)",
-                        prompt_key,
-                        usage["total_tokens"],
-                        usage["prompt_tokens"],
-                        usage["completion_tokens"],
-                    )
-
-                    # Attach to the matching prompt entry
-                    assistant_id, label = prompt_key.split("::", 1)
-                    for entry in prompts_out:
-                        if entry["assistant_id"] == assistant_id and entry["label"] == label:
-                            entry["llm_analysis"] = analysis.model_dump()
-                            break
-                except AuthenticationError as e:
-                    logger.error("Authentication failed: %s", e)
-                    logger.error("Stopping pipeline - check your LLM_API_KEY")
-                    sys.exit(1)  # Fail fast
-                except NetworkError as e:
-                    # Retry with exponential backoff (3 attempts)
-                    retry_success = False
-                    for attempt in range(3):
-                        logger.warning("Network error (attempt %d/3): %s", attempt + 1, e)
-                        time.sleep(2**attempt)  # 1s, 2s, 4s
-                        try:
-                            analysis, usage = analyze_assistant(
-                                raw_text=raw_text,
-                                tool_names=tool_names,
-                                assistant_name=assistant_name,
-                                model=llm_model,
-                            )
-                            analyses[prompt_key] = analysis
-                            total_tokens_used["prompt_tokens"] += usage["prompt_tokens"]
-                            total_tokens_used["completion_tokens"] += usage["completion_tokens"]
-                            total_tokens_used["total_tokens"] += usage["total_tokens"]
-                            logger.debug(
-                                "  %s: %d tokens (in: %d, out: %d)",
-                                prompt_key,
-                                usage["total_tokens"],
-                                usage["prompt_tokens"],
-                                usage["completion_tokens"],
-                            )
-                            assistant_id, label = prompt_key.split("::", 1)
-                            for entry in prompts_out:
-                                if (
-                                    entry["assistant_id"] == assistant_id
-                                    and entry["label"] == label
-                                ):
-                                    entry["llm_analysis"] = analysis.model_dump()
-                                    break
-                            retry_success = True
-                            break  # Success
-                        except NetworkError as retry_e:
-                            e = retry_e
-                            if attempt == 2:  # Last attempt
-                                logger.error("Network error after 3 retries: %s", e)
-                        except AuthenticationError as auth_e:
-                            # Auth error during retry - fail fast
-                            logger.error("Authentication failed: %s", auth_e)
-                            logger.error("Stopping pipeline - check your LLM_API_KEY")
-                            sys.exit(1)
-                except Exception as e:
-                    error_type = type(e).__name__
-                    logger.error("LLM analysis failed for %s: %s", prompt_key, error_type)
-                    logger.debug("Full error: %s", e, exc_info=True)
+                _process_prompt(prompt_key, raw_text, tool_names, assistant_name)
 
         if analyses:
             comparisons = compute_rankings(analyses, prompts_out)
