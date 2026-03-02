@@ -97,7 +97,9 @@ class _ParsedEntry:
     is_current: bool
 
 
-def _parse_and_measure(registry: dict, skip_llm: bool) -> tuple[
+def _parse_and_measure(
+    registry: dict, skip_llm: bool
+) -> tuple[
     list[_ParsedEntry],
     list[dict],
     set[str],
@@ -157,15 +159,17 @@ def _parse_and_measure(registry: dict, skip_llm: bool) -> tuple[
                 "llm_analysis": None,
             }
 
-            parsed_entries.append(_ParsedEntry(
-                entry=entry,
-                prompt_key=prompt_key,
-                raw_text=parsed.raw_text,
-                tool_names=[t.name for t in merged_tools],
-                assistant_name=assistant_name,
-                path_str=prompt_entry["path"],
-                is_current=is_current,
-            ))
+            parsed_entries.append(
+                _ParsedEntry(
+                    entry=entry,
+                    prompt_key=prompt_key,
+                    raw_text=parsed.raw_text,
+                    tool_names=[t.name for t in merged_tools],
+                    assistant_name=assistant_name,
+                    path_str=prompt_entry["path"],
+                    is_current=is_current,
+                )
+            )
 
     return parsed_entries, all_assistants, all_models, all_vendors
 
