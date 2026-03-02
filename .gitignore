@@ -11,6 +11,7 @@ dist/
 # Generated
 web/data/analysis.json
 .spa-data-source.json
+test.json
 
 # IDE
 .idea/
