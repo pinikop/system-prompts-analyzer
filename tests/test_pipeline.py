@@ -73,6 +73,7 @@ class TestPipelineErrors:
         with (
             patch("spa.pipeline.load_assistant_registry", return_value=registry),
             patch("spa.pipeline.DATA_DIR", data_dir),
+            patch("spa.pipeline.sync_data", return_value="abc123"),
         ):
             result = run_pipeline(output_path=tmp_path / "out.json", skip_llm=True)
 
@@ -117,6 +118,7 @@ class TestPipelineErrors:
         with (
             patch("spa.pipeline.load_assistant_registry", return_value=registry),
             patch("spa.pipeline.DATA_DIR", data_dir),
+            patch("spa.pipeline.sync_data", return_value="abc123"),
         ):
             result = run_pipeline(output_path=tmp_path / "out.json", skip_llm=True)
 

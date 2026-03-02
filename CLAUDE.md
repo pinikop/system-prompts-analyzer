@@ -26,8 +26,9 @@ The system has two main parts connected by `analysis.json`:
 
 **Python pipeline** (`src/spa/`): `agents.yaml` -> parse prompts -> compute metrics -> optional LLM analysis -> `web/data/analysis.json`
 
-- `config.py` - Paths, constants, directive keywords, tool categories
-- `pipeline.py` - Orchestrator: reads registry, parses files, computes metrics, runs LLM analysis, writes JSON
+- `config.py` - Paths, constants, directive keywords, tool categories, upstream repo
+- `data_source.py` - Auto-clones/updates `data/` from upstream GitHub repo; file hashing for cache
+- `pipeline.py` - Orchestrator: syncs data source, parses files, computes metrics, runs LLM analysis, writes JSON
 - `parsers/` - Parse prompt files (txt/yaml) and tool files (json/txt) into `ParsedPrompt` and `ToolDefinition` dataclasses (`base.py`)
 - `metrics/rule_based.py` - Computes quantitative metrics from parsed prompts (word count, sections, directive density, etc.)
 - `metrics/tool_metrics.py` - Categorizes and counts tools
@@ -40,13 +41,15 @@ The system has two main parts connected by `analysis.json`:
 - `views/` - Page renderers; `components/` - Reusable UI (chart, table, filter bar)
 - Uses Pico CSS (classless) with minimal custom CSS
 
+**Data source**: The `data/` directory is auto-cloned from `x1xhlol/system-prompts-and-models-of-ai-tools` on first run. Before each run the pipeline checks GitHub API for upstream changes and fetches only when needed. `--skip-update` skips this remote check.
+
 **Data flow**: `agents.yaml` defines coding assistants and maps them to prompt files in `data/`. Each assistant can have multiple prompt variants. Variants marked `current: true` appear on the dashboard; older versions show only in the detail view.
 
 ## Key Files
 
 - `agents.yaml` - Registry of all coding assistants, their prompt file paths, and tool files
 - `web/data/analysis.json` - Pipeline output consumed by the web UI. This is the contract between pipeline and UI - changes to its schema affect both sides.
-- `src/spa/data_source.py` - File hashing utilities for cache change detection
+- `src/spa/data_source.py` - Data source sync (auto-clone/update) and file hashing for cache
 
 ## Incremental Processing
 

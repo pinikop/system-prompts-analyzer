@@ -23,6 +23,8 @@ DIRECTIVE_KEYWORDS = [
     "MANDATORY",
 ]
 
+UPSTREAM_REPO = "x1xhlol/system-prompts-and-models-of-ai-tools"
+
 DEFAULT_LLM_MODEL = "openai/Qwen/Qwen3-235B-A22B-Instruct-2507"
 DEFAULT_LLM_BASE_URL = "https://api.studio.nebius.com/v1/"
 

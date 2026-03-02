@@ -13,6 +13,9 @@ web/data/analysis.json
 .spa-data-source.json
 test.json
 
+# Data source (auto-cloned from upstream)
+data/
+
 # IDE
 .idea/
 .vscode/

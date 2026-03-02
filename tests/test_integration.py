@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -88,10 +89,12 @@ class TestOutputSchema:
         }
 
     def test_output_includes_cache_info(self, pipeline_output: dict) -> None:
-        """Output JSON includes cache_info metadata."""
+        """Output JSON includes cache_info with real commit SHA."""
         assert "cache_info" in pipeline_output
         cache_info = pipeline_output["cache_info"]
         assert "data_source_commit" in cache_info
+        assert isinstance(cache_info["data_source_commit"], str)
+        assert len(cache_info["data_source_commit"]) == 40  # full SHA
         assert "file_hashes" in cache_info
         assert isinstance(cache_info["file_hashes"], dict)
 
@@ -237,13 +240,16 @@ class TestCliFlags:
 
         assert result is not None
 
-    def test_skip_update_parameter_accepted(self, tmp_path: Path) -> None:
-        """--skip-update parameter is accepted by run_pipeline."""
-        result = run_pipeline(
-            output_path=tmp_path / "out.json",
-            skip_llm=True,
-            skip_update=True,
-        )
+    def test_skip_update_passes_flag_to_sync(self, tmp_path: Path) -> None:
+        """--skip-update passes skip_update=True to sync_data."""
+        with patch("spa.pipeline.sync_data", return_value="abc123") as mock_sync:
+            result = run_pipeline(
+                output_path=tmp_path / "out.json",
+                skip_llm=True,
+                skip_update=True,
+            )
+        mock_sync.assert_called_once()
+        assert mock_sync.call_args.kwargs["skip_update"] is True
         assert result is not None
 
 

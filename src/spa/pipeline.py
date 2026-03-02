@@ -10,8 +10,14 @@ from pathlib import Path
 from dotenv import load_dotenv
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 
-from spa.config import DATA_DIR, DEFAULT_LLM_MODEL, WEB_DATA_DIR, load_assistant_registry
-from spa.data_source import compute_file_hash
+from spa.config import (
+    DATA_DIR,
+    DEFAULT_LLM_MODEL,
+    UPSTREAM_REPO,
+    WEB_DATA_DIR,
+    load_assistant_registry,
+)
+from spa.data_source import compute_file_hash, sync_data
 from spa.metrics.rule_based import compute_metrics
 from spa.metrics.tool_metrics import compute_tool_metrics
 from spa.parsers.base import ToolDefinition
@@ -370,6 +376,9 @@ def run_pipeline(
             "Set it in .env or pass --skip-llm to run without LLM analysis."
         )
 
+    # Phase 0: Sync data source
+    data_commit = sync_data(DATA_DIR, UPSTREAM_REPO, skip_update=skip_update)
+
     # Load previous analysis for incremental cache lookup
     previous_file_hashes: dict[str, str] = {}
     previous_prompts: dict[str, dict] = {}
@@ -404,7 +413,7 @@ def run_pipeline(
     output = {
         "generated_at": datetime.now(UTC).isoformat(),
         "cache_info": {
-            "data_source_commit": None,
+            "data_source_commit": data_commit,
             "file_hashes": file_hashes,
         },
         "meta": {

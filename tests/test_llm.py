@@ -559,7 +559,10 @@ def test_pipeline_exits_on_authentication_error(tmp_path, monkeypatch):
             test_file.parent.mkdir(parents=True)
             test_file.write_text("Test prompt")
 
-            with patch("spa.pipeline.DATA_DIR", tmp_path / "data"):
+            with (
+                patch("spa.pipeline.DATA_DIR", tmp_path / "data"),
+                patch("spa.pipeline.sync_data", return_value="abc123"),
+            ):
                 with pytest.raises(PipelineError, match="Authentication failed"):
                     run_pipeline(output_path=tmp_path / "output.json")
 
@@ -667,6 +670,7 @@ def test_pipeline_continues_on_network_error(tmp_path, monkeypatch):
         patch("spa.llm.analyzer.analyze_assistant", mock_analyze),
         patch("spa.pipeline.load_assistant_registry", return_value=registry),
         patch("spa.pipeline.DATA_DIR", data_dir),
+        patch("spa.pipeline.sync_data", return_value="abc123"),
     ):
         result = run_pipeline(output_path=tmp_path / "output.json")
 
