@@ -1,4 +1,4 @@
-import { safetyBadge } from '../constants.js';
+import { safetyBadge, CHART_COLOR_PRIMARY } from '../constants.js';
 import { getFilteredPrompts, getData, subscribe } from '../state.js';
 import { renderFilterBar } from '../components/filter-bar.js';
 import { createBarChart, destroyAll } from '../components/chart.js';
@@ -30,7 +30,7 @@ export function renderDashboard(app) {
     createBarChart('size-chart', labels, [{
       label: 'Word Count',
       data: wordCounts,
-      backgroundColor: '#3b82f6',
+      backgroundColor: CHART_COLOR_PRIMARY,
     }], {
       scales: {
         y: { beginAtZero: true, max: Math.ceil(globalMax / 1000) * 1000 },

@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from spa.metrics.rule_based import compute_metrics
 from spa.metrics.tool_metrics import compute_tool_metrics
 from spa.parsers.base import FormatType, ParsedPrompt, PromptSection, ToolDefinition
@@ -61,7 +63,7 @@ class TestRuleBasedMetrics:
     def test_real_prompt(self):
         path = DATA_DIR / "Anthropic" / "Claude Code" / "Prompt.txt"
         if not path.exists():
-            return
+            pytest.skip("data file not available")
         from spa.parsers.txt_parser import parse_prompt
 
         parsed = parse_prompt(path.read_text())

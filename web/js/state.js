@@ -26,6 +26,11 @@ export function setFilter(key, values) {
   _notify();
 }
 
+export function clearFilters() {
+  _filters = { assistants: [], models: [] };
+  _notify();
+}
+
 export function toggleFilter(key, value) {
   const arr = _filters[key];
   const idx = arr.indexOf(value);

@@ -7,7 +7,7 @@ import { renderFilterBar } from '../components/filter-bar.js';
  */
 export function renderOperations(app) {
   function render() {
-    const prompts = getFilteredPrompts().filter(p => p.is_current);
+    const prompts = getFilteredPrompts();
 
     app.innerHTML = `
       <nav aria-label="breadcrumb">
@@ -26,8 +26,9 @@ export function renderOperations(app) {
     renderMatrix(prompts, document.getElementById('operations-table'));
   }
 
-  subscribe(render);
+  const unsub = subscribe(render);
   render();
+  return () => unsub();
 }
 
 /**

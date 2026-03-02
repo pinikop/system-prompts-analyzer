@@ -15,6 +15,9 @@ _XML_TAG_RE = re.compile(
 _HEADING_RE = re.compile(r"^(?P<hashes>#{1,4})\s+(?P<title>.+)$", re.MULTILINE)
 
 # Match TypeScript-style tool definitions (Windsurf format)
+# XML sections shorter than this are noise (e.g. short inline tags, not real sections)
+_MIN_XML_SECTION_LENGTH = 50
+
 _TS_TOOL_RE = re.compile(
     r"^(?://[^\n]*\n)*type\s+(?P<name>\w+)\s*=\s*\(_:\s*\{",
     re.MULTILINE,
@@ -33,7 +36,7 @@ def parse_prompt(text: str) -> ParsedPrompt:
         for m in _XML_TAG_RE.finditer(text):
             tag_name = m.group("tag")
             content = m.group("content").strip()
-            if len(content) <= 50:
+            if len(content) <= _MIN_XML_SECTION_LENGTH:
                 continue
             if tag_name in xml_seen:
                 # Merge repeated tags (e.g. multiple <example>) into one section

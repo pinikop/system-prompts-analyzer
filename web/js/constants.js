@@ -1,6 +1,9 @@
 export const SAFETY_COLORS = { low: '#6b7280', medium: '#f59e0b', high: '#f97316', very_high: '#ef4444' };
 export const AUTONOMY_COLORS = { low: '#6b7280', medium: '#3b82f6', high: '#10b981' };
 export const DEFAULT_BADGE_COLOR = '#6b7280';
+export const CHART_COLOR_PRIMARY = '#3b82f6';
+export const CHART_COLOR_SECONDARY = '#ef4444';
+export const CHART_COLOR_MUTED = '#6b7280';
 
 export function safetyBadge(level) {
   if (!level) return '-';

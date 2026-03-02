@@ -5,13 +5,9 @@ from typer.testing import CliRunner
 
 def test_cli_imports():
     """Verify CLI module can be imported."""
-    try:
-        from spa import cli
+    from spa import cli
 
-        assert hasattr(cli, "app")
-    except ImportError:
-        # Expected to fail until we create cli.py
-        assert False, "cli module not yet created"
+    assert hasattr(cli, "app")
 
 
 def test_cli_help():
@@ -30,8 +26,7 @@ def test_output_flag_short():
 
     runner = CliRunner()
     result = runner.invoke(app, ["-o", "test.json"])
-    # Should not error on flag parsing
-    assert result.exit_code == 0 or "test.json" in str(result.exception)
+    assert result.exit_code == 0
 
 
 def test_output_flag_long():
@@ -40,7 +35,7 @@ def test_output_flag_long():
 
     runner = CliRunner()
     result = runner.invoke(app, ["--output", "test.json"])
-    assert result.exit_code == 0 or "test.json" in str(result.exception)
+    assert result.exit_code == 0
 
 
 def test_skip_llm_flag():
@@ -58,8 +53,7 @@ def test_llm_model_flag():
 
     runner = CliRunner()
     result = runner.invoke(app, ["--llm-model", "gpt-4o"])
-    # Should accept model parameter
-    assert result.exit_code == 0 or "gpt-4o" in str(result.exception)
+    assert result.exit_code == 0
 
 
 def test_force_flag():

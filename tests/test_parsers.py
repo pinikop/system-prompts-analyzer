@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from spa.parsers.base import ParsedPrompt
 from spa.parsers.json_parser import parse_tools_json
 from spa.parsers.txt_parser import extract_inline_tools, parse_prompt, parse_tools_txt
@@ -57,7 +59,7 @@ class TestTxtParser:
     def test_real_claude_code_prompt(self):
         path = DATA_DIR / "Anthropic" / "Claude Code" / "Prompt.txt"
         if not path.exists():
-            return
+            pytest.skip("data file not available")
         result = parse_prompt(path.read_text())
         assert isinstance(result, ParsedPrompt)
         assert result.format_type in ("markdown", "mixed")
@@ -66,7 +68,7 @@ class TestTxtParser:
     def test_real_cursor_prompt(self):
         path = DATA_DIR / "Cursor Prompts" / "Agent Prompt 2025-09-03.txt"
         if not path.exists():
-            return
+            pytest.skip("data file not available")
         result = parse_prompt(path.read_text())
         assert len(result.sections) > 0
 
@@ -93,7 +95,7 @@ class TestYamlParser:
     def test_real_amp_prompt(self):
         path = DATA_DIR / "Amp" / "claude-4-sonnet.yaml"
         if not path.exists():
-            return
+            pytest.skip("data file not available")
         result = parse_yaml_prompt(path.read_text())
         assert result.format_type == "yaml"
         assert len(result.sections) > 0
@@ -120,7 +122,7 @@ class TestJsonParser:
     def test_real_claude_tools(self):
         path = DATA_DIR / "Anthropic" / "Claude Code" / "Tools.json"
         if not path.exists():
-            return
+            pytest.skip("data file not available")
         result = parse_tools_json(path.read_text())
         assert len(result.tools) > 5
         names = [t.name for t in result.tools]
@@ -149,7 +151,7 @@ Query: string,
     def test_real_windsurf_tools(self):
         path = DATA_DIR / "Windsurf" / "Tools Wave 11.txt"
         if not path.exists():
-            return
+            pytest.skip("data file not available")
         result = parse_tools_txt(path.read_text())
         assert len(result.tools) > 5
 
@@ -197,7 +199,7 @@ class TestInlineToolExtraction:
         """Real Claude Code 2.0.txt should contain Bash and >= 5 tools."""
         path = DATA_DIR / "Anthropic" / "Claude Code 2.0.txt"
         if not path.exists():
-            return
+            pytest.skip("data file not available")
         tools = extract_inline_tools(path.read_text())
         names = [t.name for t in tools]
         assert "Bash" in names
@@ -207,7 +209,7 @@ class TestInlineToolExtraction:
         """Real Cursor Chat Prompt should contain >= 3 tools."""
         path = DATA_DIR / "Cursor Prompts" / "Chat Prompt.txt"
         if not path.exists():
-            return
+            pytest.skip("data file not available")
         tools = extract_inline_tools(path.read_text())
         assert len(tools) >= 3
 
@@ -215,6 +217,6 @@ class TestInlineToolExtraction:
         """Real VSCode Agent Prompt should contain >= 3 tools."""
         path = DATA_DIR / "VSCode Agent" / "Prompt.txt"
         if not path.exists():
-            return
+            pytest.skip("data file not available")
         tools = extract_inline_tools(path.read_text())
         assert len(tools) >= 3

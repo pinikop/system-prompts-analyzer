@@ -389,8 +389,8 @@ def run_pipeline(
             previous_prompts = {
                 f"{p['assistant_id']}::{p['label']}": p for p in prev_data.get("prompts", [])
             }
-        except (json.JSONDecodeError, KeyError):
-            pass
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning("Ignoring corrupt previous analysis: %s", e)
 
     # Phase 1: Parse all prompts and compute metrics
     file_hashes = _compute_file_hashes(registry)

@@ -1,4 +1,4 @@
-import { safetyBadge, autonomyBadge } from '../constants.js';
+import { safetyBadge, autonomyBadge, CHART_COLOR_PRIMARY, CHART_COLOR_SECONDARY } from '../constants.js';
 import { getData } from '../state.js';
 import { createRadarChart, destroyAll } from '../components/chart.js';
 
@@ -108,12 +108,12 @@ export function renderCompare(app) {
       {
         label: `${pA.assistant_name} (${pA.label})`,
         data: [mA.word_count/100, mA.section_count, mA.directive_count, mA.directive_density, mA.example_count, pA.tools.count],
-        borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)',
+        borderColor: CHART_COLOR_PRIMARY, backgroundColor: 'rgba(59,130,246,0.1)',
       },
       {
         label: `${pB.assistant_name} (${pB.label})`,
         data: [mB.word_count/100, mB.section_count, mB.directive_count, mB.directive_density, mB.example_count, pB.tools.count],
-        borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)',
+        borderColor: CHART_COLOR_SECONDARY, backgroundColor: 'rgba(239,68,68,0.1)',
       },
     ]);
   }

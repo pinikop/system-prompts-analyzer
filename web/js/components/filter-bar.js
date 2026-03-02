@@ -1,4 +1,4 @@
-import { getData, getFilters, setFilter, toggleFilter } from '../state.js';
+import { getData, getFilters, setFilter, clearFilters, toggleFilter } from '../state.js';
 
 function getAvailableOptions(data, currentFilters) {
   const prompts = data.prompts.filter(p => p.is_current);
@@ -65,9 +65,6 @@ export function renderFilterBar(container) {
 
   const clearBtn = container.querySelector('.filter-clear');
   if (clearBtn) {
-    clearBtn.addEventListener('click', () => {
-      setFilter('assistants', []);
-      setFilter('models', []);
-    });
+    clearBtn.addEventListener('click', () => clearFilters());
   }
 }

@@ -1,4 +1,4 @@
-import { SAFETY_COLORS, AUTONOMY_COLORS, DEFAULT_BADGE_COLOR } from '../constants.js';
+import { SAFETY_COLORS, AUTONOMY_COLORS, DEFAULT_BADGE_COLOR, CHART_COLOR_PRIMARY, CHART_COLOR_MUTED } from '../constants.js';
 import { getData, getAllPromptsForAssistant } from '../state.js';
 import { createRadarChart, destroyAll } from '../components/chart.js';
 
@@ -133,14 +133,14 @@ export function renderAssistantDetail(app, { id }) {
       label: assistant.assistant_name,
       data: [latest.metrics.word_count/100, latest.metrics.section_count, latest.metrics.directive_count,
              latest.metrics.directive_density, latest.metrics.example_count, latest.tools.count],
-      borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)',
+      borderColor: CHART_COLOR_PRIMARY, backgroundColor: 'rgba(59,130,246,0.1)',
     },
     {
       label: 'Average',
       data: [averages.word_count/100, averages.section_count, averages.directive_count,
              averages.directive_density, averages.example_count,
              Math.round(data.prompts.reduce((s,p) => s + p.tools.count, 0) / data.prompts.length)],
-      borderColor: '#6b7280', backgroundColor: 'rgba(107,114,128,0.1)',
+      borderColor: CHART_COLOR_MUTED, backgroundColor: 'rgba(107,114,128,0.1)',
     },
   ]);
 
