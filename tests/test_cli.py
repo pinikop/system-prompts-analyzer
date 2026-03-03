@@ -218,6 +218,18 @@ def test_find_free_port_skips_occupied_port():
         assert result > port
 
 
+def test_serve_missing_analysis_json(tmp_path, monkeypatch):
+    """serve exits with error when analysis.json doesn't exist."""
+    from spa.cli import app
+    import spa.cli as cli_module
+
+    monkeypatch.setattr(cli_module, "WEB_DATA_DIR", tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(app, ["serve"])
+    assert result.exit_code == 1
+    assert "spa" in result.stdout.lower()  # hints to run spa
+
+
 def test_find_free_port_raises_when_all_occupied():
     """Raises RuntimeError when no free port found within max_attempts."""
     from spa.cli import find_free_port

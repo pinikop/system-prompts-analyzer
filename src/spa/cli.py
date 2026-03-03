@@ -1,7 +1,10 @@
 """CLI interface for System Prompts Analyzer."""
 
+import functools
+import http.server
 import logging
 import socket
+import webbrowser
 from pathlib import Path
 
 import typer
@@ -157,6 +160,18 @@ def main(
             f"[green]✓[/green] Analyzed {count} prompts from {assistants} assistants{llm_status}"
         )
         console.print(f"  → {output_path}")
+
+
+@app.command()
+def serve(
+    port: int = typer.Option(8000, "--port", help="Starting port to try"),
+    no_open: bool = typer.Option(False, "--no-open", help="Don't open browser automatically"),
+) -> None:
+    """Start a local HTTP server for the web dashboard."""
+    analysis = WEB_DATA_DIR / "analysis.json"
+    if not analysis.exists():
+        console.print("[red]No analysis found. Run 'spa' first to generate data.[/red]")
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":
