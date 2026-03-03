@@ -1,6 +1,7 @@
 """CLI interface for System Prompts Analyzer."""
 
 import logging
+import socket
 from pathlib import Path
 
 import typer
@@ -16,6 +17,18 @@ app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 console = Console()
+
+
+def find_free_port(start: int, max_attempts: int = 10) -> int:
+    """Return the first free TCP port starting from `start`."""
+    for port in range(start, start + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("localhost", port))
+                return port
+            except OSError:
+                continue
+    raise RuntimeError(f"No free port found in range {start}-{start + max_attempts - 1}")
 
 
 def version_callback(value: bool) -> None:

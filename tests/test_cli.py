@@ -189,3 +189,51 @@ def test_llm_model_with_skip_llm_warning(tmp_path):
     # Should show warning
     assert "warning" in result.stdout.lower()
     assert "no effect" in result.stdout.lower()
+
+
+import socket
+
+
+def test_find_free_port_returns_start_when_free():
+    """Returns the start port when it's available."""
+    from spa.cli import find_free_port
+
+    # Find a port that is actually free
+    with socket.socket() as s:
+        s.bind(("localhost", 0))
+        free_port = s.getsockname()[1]
+    # Now that socket is closed, the port should be free
+    assert find_free_port(free_port) == free_port
+
+
+def test_find_free_port_skips_occupied_port():
+    """Skips a port that is in use and returns the next free one."""
+    from spa.cli import find_free_port
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as occupied:
+        occupied.bind(("localhost", 0))
+        occupied.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+        port = occupied.getsockname()[1]
+        result = find_free_port(port)
+        assert result > port
+
+
+def test_find_free_port_raises_when_all_occupied():
+    """Raises RuntimeError when no free port found within max_attempts."""
+    from spa.cli import find_free_port
+
+    sockets = []
+    try:
+        # Bind 3 consecutive ports starting at a high number
+        base = 39800
+        for offset in range(3):
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("localhost", base + offset))
+            sockets.append(s)
+        import pytest
+        with pytest.raises(RuntimeError, match="No free port"):
+            find_free_port(base, max_attempts=3)
+    finally:
+        for s in sockets:
+            s.close()
