@@ -15,6 +15,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `uv run spa --skip-llm` - Run pipeline without LLM analysis (no API key needed)
 - `uv run spa --force` - Reprocess everything, ignore LLM cache
 - `uv run spa --skip-update` - Use local data only, skip upstream checks
+- `uv run spa serve` - Start local HTTP server for the web dashboard (opens browser automatically)
+- `uv run spa serve --no-open` - Start server without opening browser
+- `uv run spa serve --port 8080` - Start server on a specific port
 - `uv run pytest` - Run all tests
 - `uv run pytest tests/test_metrics.py -k test_name` - Run a single test
 - `uv run ruff check src tests` - Lint
