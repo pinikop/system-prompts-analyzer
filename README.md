@@ -29,8 +29,7 @@ cp .env.example .env
 uv run spa
 
 # 4. View results in browser
-cd web && python3 -m http.server 8000
-# Then open http://localhost:8000
+uv run spa serve
 ```
 
 ## What You Get
@@ -137,8 +136,8 @@ uv run spa --skip-update --skip-llm
 
 **Option 1: Local web server (recommended):**
 ```bash
-cd web && python3 -m http.server 8000
-# Open http://localhost:8000 in your browser
+uv run spa serve
+# Opens http://localhost:8000 automatically
 ```
 
 **Option 2: Direct file open:**
