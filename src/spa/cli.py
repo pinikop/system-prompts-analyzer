@@ -46,8 +46,9 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-@app.command()
+@app.callback(invoke_without_command=True)
 def main(
+    ctx: typer.Context,
     output: Path | None = typer.Option(
         None,
         "-o",
@@ -96,6 +97,8 @@ def main(
     ),
 ) -> None:
     """Analyze coding assistant system prompts."""
+    if ctx.invoked_subcommand is not None:
+        return
     # Validate mutually exclusive flags
     if verbose and quiet:
         console.print("[red]Error: --verbose and --quiet are mutually exclusive[/red]")
@@ -172,6 +175,25 @@ def serve(
     if not analysis.exists():
         console.print("[red]No analysis found. Run 'spa' first to generate data.[/red]")
         raise typer.Exit(1)
+
+    try:
+        actual_port = find_free_port(port)
+    except RuntimeError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+
+    web_dir = str(WEB_DATA_DIR.parent)
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=web_dir)
+    url = f"http://localhost:{actual_port}"
+
+    with http.server.HTTPServer(("localhost", actual_port), handler) as httpd:
+        console.print(f"Serving at [link={url}]{url}[/link]  (Ctrl+C to stop)")
+        if not no_open:
+            webbrowser.open(url)
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            console.print("\n[green]Stopped.[/green]")
 
 
 if __name__ == "__main__":

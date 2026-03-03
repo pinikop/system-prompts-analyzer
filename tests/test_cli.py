@@ -17,7 +17,7 @@ def test_cli_help():
     runner = CliRunner()
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "Analyze coding assistant system prompts" in result.stdout
+    assert "System Prompts Analyzer" in result.stdout
 
 
 def test_output_flag_short():
@@ -192,6 +192,54 @@ def test_llm_model_with_skip_llm_warning(tmp_path):
 
 
 import socket
+from unittest.mock import MagicMock, patch
+
+
+def test_serve_starts_server(tmp_path, monkeypatch):
+    """serve starts HTTPServer on a free port and prints the URL."""
+    from spa.cli import app
+    import spa.cli as cli_module
+
+    # Create a fake analysis.json
+    (tmp_path / "analysis.json").write_text("{}")
+    monkeypatch.setattr(cli_module, "WEB_DATA_DIR", tmp_path)
+
+    mock_httpd = MagicMock()
+    mock_httpd.__enter__ = lambda s: s
+    mock_httpd.__exit__ = MagicMock(return_value=False)
+    mock_httpd.serve_forever.side_effect = KeyboardInterrupt
+
+    runner = CliRunner()
+    with patch("spa.cli.http.server.HTTPServer", return_value=mock_httpd), \
+         patch("spa.cli.webbrowser.open") as mock_browser:
+        result = runner.invoke(app, ["serve", "--no-open"])
+
+    assert result.exit_code == 0
+    assert "localhost" in result.stdout
+    mock_browser.assert_not_called()
+
+
+def test_serve_opens_browser_by_default(tmp_path, monkeypatch):
+    """serve opens browser unless --no-open is passed."""
+    from spa.cli import app
+    import spa.cli as cli_module
+
+    (tmp_path / "analysis.json").write_text("{}")
+    monkeypatch.setattr(cli_module, "WEB_DATA_DIR", tmp_path)
+
+    mock_httpd = MagicMock()
+    mock_httpd.__enter__ = lambda s: s
+    mock_httpd.__exit__ = MagicMock(return_value=False)
+    mock_httpd.serve_forever.side_effect = KeyboardInterrupt
+
+    runner = CliRunner()
+    with patch("spa.cli.http.server.HTTPServer", return_value=mock_httpd), \
+         patch("spa.cli.webbrowser.open") as mock_browser:
+        result = runner.invoke(app, ["serve"])
+
+    assert result.exit_code == 0
+    mock_browser.assert_called_once()
+    assert "localhost" in mock_browser.call_args[0][0]
 
 
 def test_find_free_port_returns_start_when_free():
