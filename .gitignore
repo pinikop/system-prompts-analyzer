@@ -26,3 +26,4 @@ data/
 
 # Plans (local scratchpad only)
 /plans/
+.worktrees/
